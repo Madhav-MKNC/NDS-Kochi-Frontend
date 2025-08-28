@@ -11,7 +11,7 @@ type ReporterProps = {
 export default function ErrorReporter({ error, reset }: ReporterProps) {
   /* ─ instrumentation shared by every route ─ */
   const lastOverlayMsg = useRef("");
-  const pollRef = useRef<NodeJS.Timeout>();
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const inIframe = window.parent !== window;
@@ -24,7 +24,7 @@ export default function ErrorReporter({ error, reset }: ReporterProps) {
         type: "ERROR_CAPTURED",
         error: {
           message: e.message,
-          stack: e.error?.stack,
+          stack: e.error instanceof Error ? e.error.stack : undefined,
           filename: e.filename,
           lineno: e.lineno,
           colno: e.colno,
@@ -37,8 +37,8 @@ export default function ErrorReporter({ error, reset }: ReporterProps) {
       send({
         type: "ERROR_CAPTURED",
         error: {
-          message: e.reason?.message ?? String(e.reason),
-          stack: e.reason?.stack,
+          message: e.reason instanceof Error ? e.reason.message : String(e.reason),
+          stack: e.reason instanceof Error ? e.reason.stack : undefined,
           source: "unhandledrejection",
         },
         timestamp: Date.now(),

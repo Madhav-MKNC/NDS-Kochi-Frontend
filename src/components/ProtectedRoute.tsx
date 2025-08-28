@@ -41,9 +41,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("access_token");
       toast.error("Session expired");
-      router.push("/login");
-      
-      // Focus management for accessibility
+      router.push("/");
+
       setTimeout(() => {
         const firstInput = document.querySelector('input[type="email"], input[type="text"]') as HTMLInputElement;
         if (firstInput) {
@@ -54,19 +53,21 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   };
 
   const doRequest = async <T = any>(
-    url: string, 
+    url: string,
     options: RequestInit = {}
   ): Promise<{ data?: T; error?: string }> => {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      
-      const headers = {
+
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...options.headers,
+        ...(options.headers as Record<string, string>),
         ...(token && { Authorization: `Bearer ${token}` }),
       };
 
-      const response = await fetch(url, {
+      const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+      const fullUrl = url.startsWith("http") ? url : `${base}${url}`;
+      const response = await fetch(fullUrl, {
         ...options,
         headers,
       });
@@ -79,7 +80,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       if (!response.ok) {
         const errorText = await response.text();
         let errorMessage = `Request failed with status ${response.status}`;
-        
+
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.message || errorData.error || errorMessage;
@@ -93,8 +94,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       const data = await response.json();
       return { data };
     } catch (error) {
-      return { 
-        error: error instanceof Error ? error.message : "Network error occurred" 
+      return {
+        error: error instanceof Error ? error.message : "Network error occurred"
       };
     }
   };
@@ -104,15 +105,15 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       if (typeof window === "undefined") return;
 
       const token = localStorage.getItem("access_token");
-      
+
       if (!token) {
-        router.push("/login");
+        router.push("/");
         return;
       }
 
       try {
-        const response = await doRequest<User>("/api/me");
-        
+        const response = await doRequest<User>("/auth/me");
+
         if (response.error) {
           clearTokenAndRedirect();
           return;
@@ -121,7 +122,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         if (response.data) {
           setUser(response.data);
         }
-      } catch (error) {
+      } catch {
         clearTokenAndRedirect();
       } finally {
         setIsLoading(false);

@@ -219,7 +219,7 @@ export class ServerError extends ApiServiceError {
 // ============================================================================
 
 const API_CONFIG = {
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://api.example.com',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000,
@@ -341,14 +341,14 @@ class ApiClient {
       async (config) => {
         // Add authorization header for protected endpoints
         const token = TokenManager.getToken();
-        const isAuthEndpoint = config.url === '/login-init' || config.url === '/verify-otp';
+        const isAuthEndpoint = config.url === '/auth/login-init' || config.url === '/auth/verify-otp';
         
         if (token && !TokenManager.isTokenExpired(token) && !isAuthEndpoint) {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
         // Set content type based on endpoint
-        if (config.url === '/login-init') {
+        if (config.url === '/auth/login-init') {
           config.headers['Content-Type'] = 'application/x-www-form-urlencoded';
         } else {
           config.headers['Content-Type'] = 'application/json';
@@ -447,7 +447,7 @@ class ApiClient {
           }
           
           return response.data;
-        } catch (error) {
+        } catch (error: any) {
           // Retry logic for network errors or 5xx errors
           if (retryCount < API_CONFIG.retryAttempts) {
             const shouldRetry = 
@@ -463,7 +463,7 @@ class ApiClient {
           throw error;
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       const apiError = error instanceof ApiServiceError ? error : this.handleError(error);
       
       // Show toast notification for errors (except 401 which redirects)
@@ -524,11 +524,11 @@ const apiClient = new ApiClient();
 
 export const authApi = {
   async loginInit(data: LoginInitRequest): Promise<LoginInitResponse> {
-    return apiClient.post<LoginInitResponse>('/login-init', data, true); // form-urlencoded
+    return apiClient.post<LoginInitResponse>('/auth/login-init', data, true); // form-urlencoded
   },
 
   async verifyOtp(data: VerifyOtpRequest): Promise<VerifyOtpResponse> {
-    const response = await apiClient.post<VerifyOtpResponse>('/verify-otp', data);
+    const response = await apiClient.post<VerifyOtpResponse>('/auth/verify-otp', data);
     if (response.access_token) {
       TokenManager.setToken(response.access_token);
     }
@@ -536,12 +536,12 @@ export const authApi = {
   },
 
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>('/me');
+    return apiClient.get<User>('/auth/me');
   },
 
   async logout(): Promise<{ msg: string }> {
     try {
-      const response = await apiClient.post<{ msg: string }>('/logout');
+      const response = await apiClient.post<{ msg: string }>('/auth/logout');
       return response;
     } finally {
       TokenManager.removeToken();
