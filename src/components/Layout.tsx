@@ -1,222 +1,262 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { Menu, LayoutDashboard, LayoutList, LayoutTemplate, PanelLeftClose } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Toaster } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Menu, BookOpen, Phone, Receipt, BarChart3, LogOut, User, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
+import { authApi, type User as ApiUser, ApiServiceError, apiUtils } from "@/lib/api";
 
 interface LayoutProps {
   children: React.ReactNode;
-  user?: {
-    name?: string;
-    email?: string;
-    avatar?: string;
-  };
+  onNavigate: (view: "dashboard" | "book-seva" | "calling-seva" | "expenses") => void;
 }
 
-const navigationItems = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Book Seva",
-    href: "/book-seva",
-    icon: LayoutList,
-  },
-  {
-    name: "Calling Seva",
-    href: "/calling-seva",
-    icon: LayoutTemplate,
-  },
-  {
-    name: "Expenses",
-    href: "/expenses",
-    icon: PanelLeftClose,
-  },
-];
+type ViewType = "dashboard" | "book-seva" | "calling-seva" | "expenses";
 
-export default function Layout({ children, user }: LayoutProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+export default function Layout({ children, onNavigate }: LayoutProps) {
+  const [currentUser, setCurrentUser] = useState<ApiUser | null>(null);
+  const [currentView, setCurrentView] = useState<ViewType>("dashboard");
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  // Theme management
+  // Initialize theme
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("theme");
-      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const shouldBeDark = stored === "dark" || (stored === null && systemDark);
-      setIsDarkMode(shouldBeDark);
-      document.documentElement.classList.toggle("dark", shouldBeDark);
+    const isDark = document.documentElement.classList.contains('dark');
+    setIsDarkMode(isDark);
+  }, []);
+
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      if (apiUtils.isAuthenticated()) {
+        const user = await authApi.getCurrentUser();
+        setCurrentUser(user);
+      }
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+      if (error instanceof ApiServiceError && error.status === 401) {
+        // User is not authenticated, this will be handled by the auth interceptor
+        setCurrentUser(null);
+      }
     }
   }, []);
 
-  const toggleTheme = () => {
+  useEffect(() => {
+    fetchCurrentUser();
+  }, [fetchCurrentUser]);
+
+  const toggleTheme = useCallback(() => {
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
-    document.documentElement.classList.toggle("dark", newDarkMode);
-    localStorage.setItem("theme", newDarkMode ? "dark" : "light");
-  };
-
-  const handleLogout = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      
-      const response = await fetch("https://localhost:8000/api/logout", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        localStorage.removeItem("token");
-        toast.success("Logout successful");
-        router.push("/login");
-      } else {
-        throw new Error("Logout failed");
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-      // Even if API fails, clear local token and redirect
-      localStorage.removeItem("token");
-      router.push("/login");
+    
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
-  };
+  }, [isDarkMode]);
 
-  const getUserInitials = () => {
-    if (!user?.name) return "U";
-    return user.name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const handleNavigation = useCallback((view: ViewType) => {
+    setCurrentView(view);
+    onNavigate(view);
+    setIsSheetOpen(false);
+  }, [onNavigate]);
 
-  const NavItems = ({ className = "", onItemClick }: { className?: string; onItemClick?: () => void }) => (
-    <nav className={className} role="navigation" aria-label="Main navigation">
-      <ul className="space-y-1">
-        {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-          
-          return (
-            <li key={item.name}>
-              <Link
-                href={item.href}
-                onClick={onItemClick}
-                className={`
-                  group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-                  hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring
-                  ${isActive 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground" 
-                    : "text-sidebar-foreground"
-                  }
-                  ${isSidebarCollapsed ? "justify-center" : ""}
-                `}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <Icon size={18} className="shrink-0" />
-                {!isSidebarCollapsed && <span>{item.name}</span>}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+  const handleLogout = useCallback(async () => {
+    setLoggingOut(true);
+    try {
+      await authApi.logout();
+      toast.success("Logged out successfully");
+      // The auth interceptor will handle token removal and redirect
+    } catch (error) {
+      if (error instanceof ApiServiceError) {
+        console.error("Logout error:", error.message);
+        // Still remove token locally even if API call fails
+        apiUtils.removeToken();
+        window.location.href = '/';
+      } else {
+        toast.error("An error occurred during logout");
+      }
+    } finally {
+      setLoggingOut(false);
+    }
+  }, []);
+
+  const getUserInitials = useCallback((name?: string, email?: string) => {
+    if (name) {
+      return name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    return 'U';
+  }, []);
+
+  const navigationItems = [
+    {
+      key: "dashboard" as ViewType,
+      label: "Dashboard",
+      icon: BarChart3,
+      description: "Overview and analytics"
+    },
+    {
+      key: "book-seva" as ViewType,
+      label: "Book Seva",
+      icon: BookOpen,
+      description: "Book distribution records"
+    },
+    {
+      key: "calling-seva" as ViewType,
+      label: "Calling Seva",
+      icon: Phone,
+      description: "Calling seva management"
+    },
+    {
+      key: "expenses" as ViewType,
+      label: "Expenses",
+      icon: Receipt,
+      description: "Expense tracking"
+    }
+  ];
+
+  const NavigationContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <nav className={`space-y-2 ${isMobile ? 'p-4' : 'p-6'}`}>
+      {navigationItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = currentView === item.key;
+        
+        return (
+          <Button
+            key={item.key}
+            variant={isActive ? "default" : "ghost"}
+            className={`w-full justify-start gap-3 ${
+              isActive 
+                ? "bg-primary text-primary-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
+            onClick={() => handleNavigation(item.key)}
+          >
+            <Icon className="h-4 w-4" />
+            <div className="flex-1 text-left">
+              <div className="font-medium">{item.label}</div>
+              {!isMobile && (
+                <div className="text-xs opacity-70">{item.description}</div>
+              )}
+            </div>
+          </Button>
+        );
+      })}
     </nav>
   );
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="flex h-16 items-center justify-between px-4">
-          {/* Left: Logo */}
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          {/* Logo and Mobile Menu */}
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setIsMobileMenuOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu size={20} />
-            </Button>
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="lg:hidden">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80 p-0">
+                <div className="flex items-center gap-3 border-b border-border px-6 py-4">
+                  <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+                    <BookOpen className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h2 className="font-heading font-semibold text-foreground">Seva Manager</h2>
+                    <p className="text-xs text-muted-foreground">Management System</p>
+                  </div>
+                </div>
+                <NavigationContent isMobile />
+              </SheetContent>
+            </Sheet>
             
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden md:flex"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <Menu size={20} />
-            </Button>
-
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">S</span>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+                <BookOpen className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-heading font-bold text-lg">Seva</span>
-            </Link>
+              <div className="hidden sm:block">
+                <h1 className="font-heading font-semibold text-foreground">Seva Manager</h1>
+                <p className="text-xs text-muted-foreground">Management System</p>
+              </div>
+            </div>
           </div>
 
-          {/* Right: Theme Toggle & User Menu */}
-          <div className="flex items-center gap-2">
+          {/* User Menu */}
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={toggleTheme}
-              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+              className="hidden sm:flex"
             >
-              {isDarkMode ? "🌙" : "☀️"}
+              {isDarkMode ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="relative h-8 w-8 rounded-full"
-                  aria-label="User menu"
-                >
+                <Button variant="ghost" className="flex items-center gap-2 px-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar} alt={user?.name || "User"} />
-                    <AvatarFallback className="text-xs">
-                      {getUserInitials()}
+                    <AvatarFallback className="text-xs bg-muted">
+                      {getUserInitials(currentUser?.name, currentUser?.email)}
                     </AvatarFallback>
                   </Avatar>
+                  <div className="hidden sm:block text-left">
+                    <div className="text-sm font-medium text-foreground">
+                      {currentUser?.name || "User"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {currentUser?.email || "Loading..."}
+                    </div>
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => router.push("/profile")}
-                  className="cursor-pointer"
-                >
-                  Profile
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5">
+                  <div className="text-sm font-medium text-foreground">
+                    {currentUser?.name || "User"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentUser?.email || "Loading..."}
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="sm:hidden" onClick={toggleTheme}>
+                  {isDarkMode ? (
+                    <>
+                      <Sun className="mr-2 h-4 w-4" />
+                      Light Mode
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="mr-2 h-4 w-4" />
+                      Dark Mode
+                    </>
+                  )}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  Logout
+                <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {loggingOut ? "Logging out..." : "Logout"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -224,66 +264,19 @@ export default function Layout({ children, user }: LayoutProps) {
         </div>
       </header>
 
-      {/* Sidebar (Desktop) */}
-      <aside 
-        className={`
-          fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] border-r border-sidebar-border bg-sidebar transition-all duration-300
-          ${isSidebarCollapsed ? "w-16" : "w-64"}
-          hidden md:block
-        `}
-      >
-        <div className="flex h-full flex-col">
-          <div className="flex-1 overflow-y-auto p-4">
-            <NavItems />
-          </div>
-        </div>
-      </aside>
+      <div className="flex">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:block w-80 border-r border-border bg-card">
+          <Card className="m-4 border-border">
+            <NavigationContent />
+          </Card>
+        </aside>
 
-      {/* Mobile Menu */}
-      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetTrigger asChild>
-          <div />
-        </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <div className="flex h-full flex-col bg-sidebar">
-            <div className="border-b border-sidebar-border p-4">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
-                  <span className="text-sidebar-primary-foreground font-bold text-sm">S</span>
-                </div>
-                <span className="font-heading font-bold text-lg text-sidebar-foreground">Seva</span>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <NavItems onItemClick={() => setIsMobileMenuOpen(false)} />
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Main Content */}
-      <main 
-        className={`
-          pt-16 min-h-screen transition-all duration-300
-          ${isSidebarCollapsed ? "md:pl-16" : "md:pl-64"}
-        `}
-      >
-        <div className="h-full">
+        {/* Main Content */}
+        <main className="flex-1 overflow-hidden">
           {children}
-        </div>
-        
-        {/* Footer */}
-        <footer className="border-t border-border bg-card/50 py-4 px-4">
-          <div className="container mx-auto">
-            <p className="text-center text-sm text-muted-foreground">
-              © 2024 Seva App. All rights reserved.
-            </p>
-          </div>
-        </footer>
-      </main>
-
-      {/* Toast Container */}
-      <Toaster position="top-right" />
+        </main>
+      </div>
     </div>
   );
 }

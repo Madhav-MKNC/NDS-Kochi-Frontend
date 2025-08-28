@@ -1,454 +1,459 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChartNoAxesCombined, LayoutDashboard, ChartBar, ChartPie } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BookOpen, Phone, DollarSign, TrendingUp, Users, Activity } from "lucide-react";
+import {
+  bookSevaApi,
+  callingSevaApi,
+  expensesApi,
+  authApi,
+  type BookSevaRead,
+  type CallingSevaRead,
+  type ExpenseRead,
+  type User,
+  ApiServiceError,
+  apiUtils
+} from "@/lib/api";
 
-interface BookSevaRead {
-  id: string;
-  date: string;
-  book_type: 'free' | 'paid';
-  quantity: number;
+interface DashboardStats {
+  bookSevas: {
+    total: number;
+    free: number;
+    paid: number;
+    totalQuantity: number;
+  };
+  callingSevas: {
+    total: number;
+    interested: number;
+    notInterested: number;
+  };
+  expenses: {
+    total: number;
+    totalAmount: number;
+    seva: number;
+    naamdaan: number;
+  };
 }
 
-interface CallingSevaRead {
-  id: string;
-  date: string;
-  status: 'completed' | 'pending' | 'failed';
-}
-
-interface ExpenseRead {
-  id: string;
-  date: string;
-  item_name: string;
-  item_price: number;
-  quantity: number;
-  total_amount: number;
-  category: string;
-}
-
-interface DashboardData {
-  books: BookSevaRead[];
-  calls: CallingSevaRead[];
-  expenses: ExpenseRead[];
-}
-
-interface SeriesData {
+interface ChartData {
   date: string;
   books: number;
   calls: number;
   expenses: number;
 }
 
-interface SummaryCardProps {
-  title: string;
-  value: string | number;
-  breakdown: { label: string; value: string | number }[];
-  icon: React.ReactNode;
-  sparklineData?: number[];
-}
-
-function SummaryCard({ title, value, breakdown, icon, sparklineData = [] }: SummaryCardProps) {
-  const maxValue = Math.max(...sparklineData, 1);
-  
-  return (
-    <Card className="bg-card">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className="text-muted-foreground">{icon}</div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-foreground mb-2">{value}</div>
-        <div className="space-y-1 mb-3">
-          {breakdown.map((item, index) => (
-            <div key={index} className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="text-foreground font-medium">{item.value}</span>
-            </div>
-          ))}
-        </div>
-        {sparklineData.length > 0 && (
-          <div className="h-8 w-full" role="img" aria-label={`Sparkline chart for ${title}`}>
-            <svg width="100%" height="100%" viewBox="0 0 100 32" className="text-primary">
-              <polyline
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                points={sparklineData
-                  .map((value, index) => 
-                    `${(index / (sparklineData.length - 1)) * 100},${32 - (value / maxValue) * 28}`
-                  )
-                  .join(' ')}
-              />
-            </svg>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-interface TrendChartProps {
-  data: SeriesData[];
-  metric: 'books' | 'calls' | 'expenses';
-  title: string;
-}
-
-function TrendChart({ data, metric, title }: TrendChartProps) {
-  const values = data.map(d => d[metric]);
-  const maxValue = Math.max(...values, 1);
-  const minValue = Math.min(...values, 0);
-  const range = maxValue - minValue || 1;
-
-  return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <div className="h-64 w-full" role="img" aria-label={`Trend chart for ${title}`}>
-        <svg width="100%" height="100%" viewBox="0 0 400 200" className="border rounded-md bg-card">
-          {/* Grid lines */}
-          {[0, 1, 2, 3, 4].map(i => (
-            <g key={i}>
-              <line 
-                x1="40" 
-                y1={40 + (i * 32)} 
-                x2="380" 
-                y2={40 + (i * 32)} 
-                stroke="currentColor" 
-                strokeWidth="0.5" 
-                className="text-border"
-              />
-              <text 
-                x="35" 
-                y={44 + (i * 32)} 
-                fontSize="10" 
-                textAnchor="end" 
-                className="text-muted-foreground fill-current"
-              >
-                {Math.round(maxValue - (i * range / 4))}
-              </text>
-            </g>
-          ))}
-          
-          {/* Bars */}
-          {data.map((point, index) => {
-            const barHeight = ((point[metric] - minValue) / range) * 128;
-            const x = 50 + (index * 24);
-            return (
-              <g key={index}>
-                <rect
-                  x={x}
-                  y={168 - barHeight}
-                  width="16"
-                  height={barHeight}
-                  className="fill-primary"
-                />
-                <text
-                  x={x + 8}
-                  y="185"
-                  fontSize="8"
-                  textAnchor="middle"
-                  className="text-muted-foreground fill-current"
-                >
-                  {new Date(point.date).getDate()}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      
-      {/* Accessible table fallback */}
-      <table className="sr-only">
-        <caption>{title} data</caption>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((point, index) => (
-            <tr key={index}>
-              <td>{new Date(point.date).toLocaleDateString()}</td>
-              <td>{point[metric]}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<'7' | '14' | '30'>('14');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [bookSevas, setBookSevas] = useState<BookSevaRead[]>([]);
+  const [callingSevas, setCallingSevas] = useState<CallingSevaRead[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRead[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<'books' | 'calls' | 'expenses'>('books');
+  
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const user = await authApi.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+    }
+  }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      const [booksResponse, callsResponse, expensesResponse] = await Promise.all([
-        fetch('https://localhost:8000/api/book-seva'),
-        fetch('https://localhost:8000/api/calling-seva'),
-        fetch('https://localhost:8000/api/expenses')
+      
+      const [bookSevasData, callingSevasData, expensesData] = await Promise.allSettled([
+        bookSevaApi.getAll(),
+        callingSevaApi.getAll(),
+        expensesApi.getAll()
       ]);
 
-      const books = booksResponse.ok ? await booksResponse.json() : [];
-      const calls = callsResponse.ok ? await callsResponse.json() : [];
-      const expenses = expensesResponse.ok ? await expensesResponse.json() : [];
-
-      if (!booksResponse.ok || !callsResponse.ok || !expensesResponse.ok) {
-        throw new Error('Some data could not be loaded');
+      if (bookSevasData.status === 'fulfilled') {
+        setBookSevas(Array.isArray(bookSevasData.value) ? bookSevasData.value : []);
+      } else {
+        console.error('Failed to fetch book sevas:', bookSevasData.reason);
+        setBookSevas([]);
       }
 
-      setData({ books, calls, expenses });
-      toast.success('Dashboard refreshed');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-      toast.error('Failed to refresh dashboard');
+      if (callingSevasData.status === 'fulfilled') {
+        setCallingSevas(Array.isArray(callingSevasData.value) ? callingSevasData.value : []);
+      } else {
+        console.error('Failed to fetch calling sevas:', callingSevasData.reason);
+        setCallingSevas([]);
+      }
+
+      if (expensesData.status === 'fulfilled') {
+        setExpenses(Array.isArray(expensesData.value) ? expensesData.value : []);
+      } else {
+        console.error('Failed to fetch expenses:', expensesData.reason);
+        setExpenses([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (apiUtils.isAuthenticated()) {
+      fetchCurrentUser();
+      fetchAllData();
+    }
+  }, [fetchCurrentUser, fetchAllData]);
 
-  const summaryData = useMemo(() => {
-    if (!data) return null;
+  const stats: DashboardStats = useMemo(() => {
+    const bookStats = {
+      total: bookSevas.length,
+      free: bookSevas.filter(b => b.book_type === 'free').length,
+      paid: bookSevas.filter(b => b.book_type === 'paid').length,
+      totalQuantity: bookSevas.reduce((sum, b) => sum + b.quantity, 0)
+    };
 
-    const totalBooks = data.books.reduce((sum, book) => sum + book.quantity, 0);
-    const booksByType = data.books.reduce((acc, book) => {
-      acc[book.book_type] = (acc[book.book_type] || 0) + book.quantity;
-      return acc;
-    }, {} as Record<string, number>);
+    const callStats = {
+      total: callingSevas.length,
+      interested: callingSevas.filter(c => c.status === 'interested').length,
+      notInterested: callingSevas.filter(c => c.status === 'not interested').length,
+    };
 
-    const totalCalls = data.calls.length;
-    const callsByStatus = data.calls.reduce((acc, call) => {
-      acc[call.status] = (acc[call.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const totalExpenses = data.expenses.reduce((sum, expense) => sum + expense.total_amount, 0);
-    const expensesByCategory = data.expenses.reduce((acc, expense) => {
-      acc[expense.category] = (acc[expense.category] || 0) + expense.total_amount;
-      return acc;
-    }, {} as Record<string, number>);
+    const expenseStats = {
+      total: expenses.length,
+      totalAmount: expenses.reduce((sum, e) => sum + e.total_amount, 0),
+      seva: expenses.filter(e => e.category === 'seva').length,
+      naamdaan: expenses.filter(e => e.category === 'naamdaan').length,
+    };
 
     return {
-      totalBooks,
-      booksByType,
-      totalCalls,
-      callsByStatus,
-      totalExpenses,
-      expensesByCategory
+      bookSevas: bookStats,
+      callingSevas: callStats,
+      expenses: expenseStats
     };
-  }, [data]);
+  }, [bookSevas, callingSevas, expenses]);
 
-  const seriesData = useMemo(() => {
-    if (!data) return [];
+  const chartData: ChartData[] = useMemo(() => {
+    // Create a map of dates to activity counts
+    const dateMap = new Map<string, { books: number; calls: number; expenses: number }>();
 
-    const days = parseInt(dateRange);
-    const series: SeriesData[] = [];
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      const dayBooks = data.books
-        .filter(book => book.date.startsWith(dateStr))
-        .reduce((sum, book) => sum + book.quantity, 0);
-      
-      const dayCalls = data.calls
-        .filter(call => call.date.startsWith(dateStr))
-        .length;
-      
-      const dayExpenses = data.expenses
-        .filter(expense => expense.date.startsWith(dateStr))
-        .reduce((sum, expense) => sum + expense.total_amount, 0);
+    // Process book sevas
+    bookSevas.forEach(book => {
+      const date = new Date(book.date).toLocaleDateString();
+      if (!dateMap.has(date)) {
+        dateMap.set(date, { books: 0, calls: 0, expenses: 0 });
+      }
+      dateMap.get(date)!.books += book.quantity;
+    });
 
-      series.push({
-        date: dateStr,
-        books: dayBooks,
-        calls: dayCalls,
-        expenses: dayExpenses
-      });
-    }
+    // Process calling sevas
+    callingSevas.forEach(call => {
+      const date = new Date(call.date).toLocaleDateString();
+      if (!dateMap.has(date)) {
+        dateMap.set(date, { books: 0, calls: 0, expenses: 0 });
+      }
+      dateMap.get(date)!.calls += 1;
+    });
 
-    return series;
-  }, [data, dateRange]);
+    // Process expenses (mock date since expenses don't have date in the current schema)
+    expenses.forEach(expense => {
+      const date = new Date().toLocaleDateString(); // Using current date as fallback
+      if (!dateMap.has(date)) {
+        dateMap.set(date, { books: 0, calls: 0, expenses: 0 });
+      }
+      dateMap.get(date)!.expenses += 1;
+    });
 
-  const sparklineData = useMemo(() => {
-    if (!seriesData.length) return [];
-    return seriesData.slice(-7).map(d => d.books);
-  }, [seriesData]);
+    // Convert to array and sort by date
+    return Array.from(dateMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-7); // Get last 7 days
+  }, [bookSevas, callingSevas, expenses]);
+
+  const formatCurrency = useCallback((amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }, []);
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="animate-pulse bg-card">
-              <CardHeader>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 bg-muted rounded w-1/2 mb-2"></div>
-                <div className="space-y-2">
-                  <div className="h-3 bg-muted rounded"></div>
-                  <div className="h-3 bg-muted rounded w-4/5"></div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-md" />
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-      </div>
-    );
-  }
 
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <Button onClick={fetchData} variant="outline">
-            Retry
-          </Button>
-        </div>
-        <Card className="bg-card border-destructive">
-          <CardContent className="pt-6">
-            <p className="text-destructive">{error}</p>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-48 mt-2" />
+              </div>
+              <Skeleton className="h-10 w-32" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (!summaryData) return null;
-
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <div className="flex items-center gap-2">
-          <Select value={dateRange} onValueChange={(value: '7' | '14' | '30') => setDateRange(value)}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="14">Last 14 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={fetchData} variant="outline" size="sm">
-            Refresh
-          </Button>
+        <div>
+          <h1 className="text-3xl font-heading font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back{currentUser?.name ? `, ${currentUser.name}` : ''}! Here's your seva activity overview.
+          </p>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
-          title="Total Books Processed"
-          value={summaryData.totalBooks.toLocaleString()}
-          breakdown={[
-            { label: 'Free', value: summaryData.booksByType.free || 0 },
-            { label: 'Paid', value: summaryData.booksByType.paid || 0 }
-          ]}
-          icon={<LayoutDashboard className="h-4 w-4" />}
-          sparklineData={sparklineData}
-        />
-
-        <SummaryCard
-          title="Total Calls Made"
-          value={summaryData.totalCalls.toLocaleString()}
-          breakdown={[
-            { label: 'Completed', value: summaryData.callsByStatus.completed || 0 },
-            { label: 'Pending', value: summaryData.callsByStatus.pending || 0 },
-            { label: 'Failed', value: summaryData.callsByStatus.failed || 0 }
-          ]}
-          icon={<ChartBar className="h-4 w-4" />}
-        />
-
-        <SummaryCard
-          title="Total Expenses"
-          value={`₹${summaryData.totalExpenses.toLocaleString()}`}
-          breakdown={Object.entries(summaryData.expensesByCategory)
-            .slice(0, 3)
-            .map(([category, amount]) => ({
-              label: category,
-              value: `₹${amount.toLocaleString()}`
-            }))}
-          icon={<ChartPie className="h-4 w-4" />}
-        />
-
-        <SummaryCard
-          title="Recent Activity"
-          value={`${seriesData.slice(-1)[0]?.books || 0} books`}
-          breakdown={[
-            { label: 'Today calls', value: seriesData.slice(-1)[0]?.calls || 0 },
-            { label: 'Today expenses', value: `₹${seriesData.slice(-1)[0]?.expenses || 0}` }
-          ]}
-          icon={<ChartNoAxesCombined className="h-4 w-4" />}
-        />
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle className="text-foreground">Books Processed Trend</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Daily book processing for the last {dateRange} days
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TrendChart
-              data={seriesData}
-              metric="books"
-              title="Books Processed"
-            />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Books Card */}
+        <Card className="border-border bg-card hover:bg-accent/50 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Books Distributed</p>
+                <div className="text-2xl font-bold text-foreground">{stats.bookSevas.totalQuantity}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.bookSevas.free} free • {stats.bookSevas.paid} paid
+                </p>
+              </div>
+              <div className="h-8 w-8 bg-blue-100 dark:bg-blue-900/20 rounded-md flex items-center justify-center">
+                <BookOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-foreground">Activity Trends</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Track different metrics over time
-              </CardDescription>
+        {/* Calls Card */}
+        <Card className="border-border bg-card hover:bg-accent/50 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Calls Made</p>
+                <div className="text-2xl font-bold text-foreground">{stats.callingSevas.total}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.callingSevas.interested} interested • {stats.callingSevas.notInterested} others
+                </p>
+              </div>
+              <div className="h-8 w-8 bg-green-100 dark:bg-green-900/20 rounded-md flex items-center justify-center">
+                <Phone className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
             </div>
-            <Select value={selectedMetric} onValueChange={(value: 'books' | 'calls' | 'expenses') => setSelectedMetric(value)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="books">Books</SelectItem>
-                <SelectItem value="calls">Calls</SelectItem>
-                <SelectItem value="expenses">Expenses</SelectItem>
-              </SelectContent>
-            </Select>
+          </CardContent>
+        </Card>
+
+        {/* Expenses Card */}
+        <Card className="border-border bg-card hover:bg-accent/50 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Total Expenses</p>
+                <div className="text-2xl font-bold text-foreground">{formatCurrency(stats.expenses.totalAmount)}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.expenses.total} items recorded
+                </p>
+              </div>
+              <div className="h-8 w-8 bg-orange-100 dark:bg-orange-900/20 rounded-md flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Activity Card */}
+        <Card className="border-border bg-card hover:bg-accent/50 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Total Activities</p>
+                <div className="text-2xl font-bold text-foreground">
+                  {stats.bookSevas.total + stats.callingSevas.total + stats.expenses.total}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  All seva activities
+                </p>
+              </div>
+              <div className="h-8 w-8 bg-purple-100 dark:bg-purple-900/20 rounded-md flex items-center justify-center">
+                <Activity className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity Trends Chart */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-foreground">Activity Trends</CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Track different metrics over time
+            </CardDescription>
+          </div>
+          <Select value={selectedMetric} onValueChange={(value: 'books' | 'calls' | 'expenses') => setSelectedMetric(value)}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="books">Books</SelectItem>
+              <SelectItem value="calls">Calls</SelectItem>
+              <SelectItem value="expenses">Expenses</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent>
+          {chartData.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
+              <div className="text-center">
+                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">No data available</p>
+                <p className="text-sm">Start adding records to see trends</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>Last {chartData.length} days activity</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-primary rounded-sm"></div>
+                  <span className="capitalize">{selectedMetric}</span>
+                </div>
+              </div>
+              
+              {/* Simple Bar Chart */}
+              <div className="space-y-3">
+                {chartData.map((data, index) => {
+                  const value = data[selectedMetric];
+                  const maxValue = Math.max(...chartData.map(d => d[selectedMetric]));
+                  const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-4">
+                      <div className="w-20 text-sm text-muted-foreground">
+                        {data.date}
+                      </div>
+                      <div className="flex-1 flex items-center gap-2">
+                        <div className="flex-1 bg-muted rounded-full h-2">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <div className="w-8 text-sm font-medium text-foreground">
+                          {value}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              Book Distribution
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <TrendChart
-              data={seriesData}
-              metric={selectedMetric}
-              title={selectedMetric === 'books' ? 'Books' : selectedMetric === 'calls' ? 'Calls' : 'Expenses (₹)'}
-            />
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total Records:</span>
+              <span className="font-medium">{stats.bookSevas.total}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Free Books:</span>
+              <span className="font-medium">{stats.bookSevas.free}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Paid Books:</span>
+              <span className="font-medium">{stats.bookSevas.paid}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
+              Calling Seva
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total Calls:</span>
+              <span className="font-medium">{stats.callingSevas.total}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Interested:</span>
+              <span className="font-medium text-green-600">{stats.callingSevas.interested}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Not Interested:</span>
+              <span className="font-medium text-red-600">{stats.callingSevas.notInterested}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              Expense Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total Amount:</span>
+              <span className="font-medium">{formatCurrency(stats.expenses.totalAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Seva Expenses:</span>
+              <span className="font-medium">{stats.expenses.seva}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Naamdaan Expenses:</span>
+              <span className="font-medium">{stats.expenses.naamdaan}</span>
+            </div>
           </CardContent>
         </Card>
       </div>

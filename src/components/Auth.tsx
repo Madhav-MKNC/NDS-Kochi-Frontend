@@ -3,340 +3,313 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Loader2, Mail, Lock, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { LogIn, MailCheck, Undo, Key } from "lucide-react";
+import { authApi, type LoginInitRequest, type VerifyOtpRequest, ApiServiceError } from "@/lib/api";
 
 interface AuthProps {
-  onSuccessfulLogin?: () => void;
+  onSuccessfulLogin: () => void;
 }
 
-export default function Auth({ onSuccessfulLogin }: AuthProps) {
-  const [view, setView] = useState<"login" | "otp">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState({
-    email: "",
-    password: "",
-    otp: "",
-    general: ""
-  });
+type AuthStep = "login" | "otp";
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+export default function Auth({ onSuccessfulLogin }: AuthProps) {
+  const [step, setStep] = useState<AuthStep>("login");
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  
+  // Login form state
+  const [loginData, setLoginData] = useState<LoginInitRequest>({
+    username: "",
+    password: "",
+  });
+  const [loginErrors, setLoginErrors] = useState<Record<string, string>>({});
+
+  // OTP form state
+  const [otpData, setOtpData] = useState<VerifyOtpRequest>({
+    email: "",
+    code: "",
+  });
+  const [otpErrors, setOtpErrors] = useState<Record<string, string>>({});
+
+  const validateLoginForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (!loginData.username.trim()) {
+      errors.username = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginData.username)) {
+      errors.username = "Please enter a valid email address";
+    }
+    
+    if (!loginData.password.trim()) {
+      errors.password = "Password is required";
+    } else if (loginData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+    
+    setLoginErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateOtpForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (!otpData.code.trim()) {
+      errors.code = "OTP code is required";
+    } else if (!/^\d{6}$/.test(otpData.code)) {
+      errors.code = "OTP must be 6 digits";
+    }
+    
+    setOtpErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({ email: "", password: "", otp: "", general: "" });
+    
+    if (!validateLoginForm()) return;
 
-    // Validate inputs
-    let hasErrors = false;
-    const newErrors = { email: "", password: "", otp: "", general: "" };
-
-    if (!email) {
-      newErrors.email = "Email is required";
-      hasErrors = true;
-    } else if (!validateEmail(email)) {
-      newErrors.email = "Please enter a valid email address";
-      hasErrors = true;
-    }
-
-    if (!password) {
-      newErrors.password = "Password is required";
-      hasErrors = true;
-    }
-
-    if (hasErrors) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsLoading(true);
-
+    setLoading(true);
     try {
-      const formData = new URLSearchParams();
-      formData.append("username", email);
-      formData.append("password", password);
-
-      const response = await fetch("https://localhost:8000/login-init", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setView("otp");
-        toast.success(data.msg || "OTP sent to your email");
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        setErrors({ ...newErrors, general: errorData.message || "Login failed. Please try again." });
+      const response = await authApi.loginInit(loginData);
+      
+      if (response.msg === "OTP sent") {
+        setEmail(loginData.username);
+        setOtpData({ email: loginData.username, code: "" });
+        setStep("otp");
+        toast.success("OTP sent to your email address");
       }
     } catch (error) {
-      setErrors({ ...newErrors, general: "Network error. Please check your connection." });
+      if (error instanceof ApiServiceError) {
+        if (error.status === 400) {
+          toast.error("Invalid email or password");
+        } else if (error.status === 401) {
+          toast.error("Invalid credentials. Please check your email and password.");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({ email: "", password: "", otp: "", general: "" });
+    
+    if (!validateOtpForm()) return;
 
-    if (!otp || otp.length !== 6) {
-      setErrors({ email: "", password: "", otp: "Please enter a valid 6-digit code", general: "" });
-      return;
-    }
-
-    setIsLoading(true);
-
+    setLoading(true);
     try {
-      const response = await fetch("https://localhost:8000/verify-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          code: otp,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Store access token
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("token_type", data.token_type || "bearer");
-        localStorage.setItem("token_expiry", Date.now() + (24 * 60 * 60 * 1000)); // 24 hours from now
-
-        // Fetch user profile
-        try {
-          await fetch("https://localhost:8000/me", {
-            headers: {
-              "Authorization": `${data.token_type || "bearer"} ${data.access_token}`,
-            },
-          });
-        } catch (error) {
-          console.warn("Failed to fetch user profile:", error);
-        }
-
-        toast.success("Successfully logged in!");
-        
-        if (onSuccessfulLogin) {
-          onSuccessfulLogin();
-        }
-
-        // Redirect to dashboard
-        window.location.href = "/dashboard";
-      } else {
-        if (response.status === 401) {
-          setErrors({ email: "", password: "", otp: "Invalid or expired OTP", general: "" });
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          setErrors({ email: "", password: "", otp: "", general: errorData.message || "Verification failed. Please try again." });
-        }
+      const response = await authApi.verifyOtp(otpData);
+      
+      if (response.access_token) {
+        toast.success("Login successful!");
+        onSuccessfulLogin();
       }
     } catch (error) {
-      setErrors({ email: "", password: "", otp: "", general: "Network error. Please check your connection." });
+      if (error instanceof ApiServiceError) {
+        if (error.status === 400) {
+          toast.error("Invalid or expired OTP. Please try again.");
+        } else if (error.status === 401) {
+          toast.error("Invalid OTP code. Please check and try again.");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleOtpChange = (value: string) => {
-    // Only allow digits and limit to 6 characters
-    const numericValue = value.replace(/\D/g, "").slice(0, 6);
-    setOtp(numericValue);
-    setErrors({ ...errors, otp: "" });
+  const handleBackToLogin = () => {
+    setStep("login");
+    setOtpData({ email: "", code: "" });
+    setOtpErrors({});
   };
 
-  const handleOtpPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedText = e.clipboardData.getData("text");
-    const numericValue = pastedText.replace(/\D/g, "").slice(0, 6);
-    setOtp(numericValue);
+  const handleResendOtp = async () => {
+    if (!email) return;
+    
+    setLoading(true);
+    try {
+      await authApi.loginInit({ username: email, password: loginData.password });
+      toast.success("OTP resent to your email address");
+    } catch (error) {
+      if (error instanceof ApiServiceError) {
+        toast.error(error.message);
+      } else {
+        toast.error("Failed to resend OTP. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const goBackToLogin = () => {
-    setView("login");
-    setOtp("");
-    setErrors({ email: "", password: "", otp: "", general: "" });
-  };
-
-  if (view === "otp") {
+  if (step === "otp") {
     return (
-      <div className="w-full max-w-md mx-auto bg-card rounded-lg shadow-sm border p-8">
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Key className="w-6 h-6 text-primary" />
+      <Card className="w-full max-w-md mx-auto bg-card border-border shadow-lg">
+        <CardHeader className="text-center space-y-3">
+          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+            <Shield className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-heading font-bold text-foreground mb-2">
-            Enter Verification Code
-          </h1>
-          <p className="text-muted-foreground">
-            We sent a 6-digit code to {email}
-          </p>
-        </div>
-
-        {errors.general && (
-          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-            <p className="text-sm text-destructive">{errors.general}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleOtpSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="otp" className="text-sm font-medium">
-              Verification Code
-            </Label>
-            <Input
-              id="otp"
-              type="text"
-              value={otp}
-              onChange={(e) => handleOtpChange(e.target.value)}
-              onPaste={handleOtpPaste}
-              placeholder="000000"
-              className="text-center text-2xl tracking-widest"
-              maxLength={6}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              aria-label="Enter 6-digit verification code"
-              disabled={isLoading}
-              autoComplete="one-time-code"
-            />
-            {errors.otp && (
-              <p className="text-sm text-destructive">{errors.otp}</p>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isLoading || otp.length !== 6}
-          >
-            {isLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                Verifying...
-              </>
-            ) : (
-              <>
-                <MailCheck className="w-4 h-4 mr-2" />
-                Verify Code
-              </>
-            )}
-          </Button>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={goBackToLogin}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors inline-flex items-center"
-              disabled={isLoading}
+          <CardTitle className="text-2xl font-heading text-foreground">Verify OTP</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Enter the 6-digit code sent to <strong>{email}</strong>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form onSubmit={handleOtpSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="otp" className="text-foreground">OTP Code</Label>
+              <Input
+                id="otp"
+                type="text"
+                placeholder="000000"
+                value={otpData.code}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setOtpData({ ...otpData, code: value });
+                  if (otpErrors.code) setOtpErrors({ ...otpErrors, code: "" });
+                }}
+                className={`text-center text-lg tracking-widest ${otpErrors.code ? "border-destructive" : ""}`}
+                maxLength={6}
+                disabled={loading}
+                autoComplete="one-time-code"
+              />
+              {otpErrors.code && (
+                <p className="text-sm text-destructive">{otpErrors.code}</p>
+              )}
+            </div>
+            
+            <Button 
+              type="submit" 
+              className="w-full bg-primary hover:bg-primary/90" 
+              disabled={loading}
             >
-              <Undo className="w-3 h-3 mr-1" />
-              Change email
-            </button>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Verify & Login"
+              )}
+            </Button>
+          </form>
+
+          <div className="flex flex-col gap-2 text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResendOtp}
+              disabled={loading}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Didn't receive the code? Resend OTP
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleBackToLogin}
+              disabled={loading}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Back to Login
+            </Button>
           </div>
-        </form>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="w-full max-w-md mx-auto bg-card rounded-lg shadow-sm border p-8">
-      <div className="text-center mb-6">
-        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <LogIn className="w-6 h-6 text-primary" />
+    <Card className="w-full max-w-md mx-auto bg-card border-border shadow-lg">
+      <CardHeader className="text-center space-y-3">
+        <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+          <Mail className="h-6 w-6 text-primary" />
         </div>
-        <h1 className="text-2xl font-heading font-bold text-foreground mb-2">
-          Welcome Back
-        </h1>
-        <p className="text-muted-foreground">
+        <CardTitle className="text-2xl font-heading text-foreground">Welcome Back</CardTitle>
+        <CardDescription className="text-muted-foreground">
           Sign in to your account to continue
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-foreground">Email Address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter your email"
+                value={loginData.username}
+                onChange={(e) => {
+                  setLoginData({ ...loginData, username: e.target.value });
+                  if (loginErrors.username) setLoginErrors({ ...loginErrors, username: "" });
+                }}
+                className={`pl-10 ${loginErrors.username ? "border-destructive" : ""}`}
+                disabled={loading}
+                autoComplete="email"
+              />
+            </div>
+            {loginErrors.username && (
+              <p className="text-sm text-destructive">{loginErrors.username}</p>
+            )}
+          </div>
 
-      {errors.general && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-          <p className="text-sm text-destructive">{errors.general}</p>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-foreground">Password</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={loginData.password}
+                onChange={(e) => {
+                  setLoginData({ ...loginData, password: e.target.value });
+                  if (loginErrors.password) setLoginErrors({ ...loginErrors, password: "" });
+                }}
+                className={`pl-10 ${loginErrors.password ? "border-destructive" : ""}`}
+                disabled={loading}
+                autoComplete="current-password"
+              />
+            </div>
+            {loginErrors.password && (
+              <p className="text-sm text-destructive">{loginErrors.password}</p>
+            )}
+          </div>
+          
+          <Button 
+            type="submit" 
+            className="w-full bg-primary hover:bg-primary/90" 
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending OTP...
+              </>
+            ) : (
+              "Continue"
+            )}
+          </Button>
+        </form>
+
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground">
+            We'll send you an OTP to verify your identity
+          </p>
         </div>
-      )}
-
-      <form onSubmit={handleLoginSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium">
-            Email Address
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setErrors({ ...errors, email: "" });
-            }}
-            placeholder="Enter your email"
-            disabled={isLoading}
-            autoComplete="email"
-            aria-describedby={errors.email ? "email-error" : undefined}
-          />
-          {errors.email && (
-            <p id="email-error" className="text-sm text-destructive">
-              {errors.email}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm font-medium">
-            Password
-          </Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setErrors({ ...errors, password: "" });
-            }}
-            placeholder="Enter your password"
-            disabled={isLoading}
-            autoComplete="current-password"
-            aria-describedby={errors.password ? "password-error" : undefined}
-          />
-          {errors.password && (
-            <p id="password-error" className="text-sm text-destructive">
-              {errors.password}
-            </p>
-          )}
-        </div>
-
-        <Button
-          type="submit"
-          className="w-full mt-6"
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-              Signing In...
-            </>
-          ) : (
-            <>
-              <LogIn className="w-4 h-4 mr-2" />
-              Continue
-            </>
-          )}
-        </Button>
-      </form>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -5,92 +5,47 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, BookText, ChevronUp } from "lucide-react";
+import { BookOpen, BookText, ChevronUp, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-
-interface BookSeva {
-  id: string;
-  date: string;
-  state: string;
-  district: string;
-  seva_place: string;
-  sevadar_name: string;
-  book_name: string;
-  book_type: "free" | "paid";
-  quantity: number;
-  coordinator_name: string;
-  driver_name: string;
-}
-
-interface CreateBookSevaRequest {
-  date: string;
-  state: string;
-  district: string;
-  seva_place: string;
-  sevadar_name: string;
-  book_name: string;
-  book_type: "free" | "paid";
-  quantity: number;
-  coordinator_name: string;
-  driver_name: string;
-}
-
-interface User {
-  name: string;
-}
-
-const BOOK_NAMES = [
-  "gyan ganga (english)",
-  "gyan ganga (hindi)",
-  "divine revelations",
-  "spiritual discourse",
-  "teachings collection"
-];
-
-const doRequest = async (url: string, options?: RequestInit) => {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}${url}`, {
-    ...options,
-    headers: {
-      ...options?.headers,
-      "Authorization": token ? `Bearer ${token}` : "",
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Network error" }));
-    throw new Error(errorData.message || `HTTP ${response.status}`);
-  }
-
-  return response.json();
-};
+import { 
+  bookSevaApi, 
+  authApi,
+  type BookSevaRead,
+  type BookSevaCreate,
+  type BookSevaUpdate,
+  type BookName,
+  type BookType,
+  type User,
+  BOOK_NAMES,
+  ApiServiceError,
+  apiUtils
+} from "@/lib/api";
 
 export default function BookSevaSection() {
-  const [bookSevas, setBookSevas] = useState<BookSeva[]>([]);
+  const [bookSevas, setBookSevas] = useState<BookSevaRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [bookTypeFilter, setBookTypeFilter] = useState<"all" | "free" | "paid">("all");
+  const [bookTypeFilter, setBookTypeFilter] = useState<"all" | BookType>("all");
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<BookSева | null>(null);
+  const [editingItem, setEditingItem] = useState<BookSevaRead | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   
   // Form states
-  const [formData, setFormData] = useState<CreateBookSevaRequest>({
+  const [formData, setFormData] = useState<BookSevaCreate>({
     date: new Date().toISOString().slice(0, 16),
     state: "",
     district: "",
     seva_place: "",
     sevadar_name: "",
-    book_name: "",
+    book_name: "" as BookName,
     book_type: "free",
     quantity: 1,
     coordinator_name: "",
@@ -100,26 +55,36 @@ export default function BookSevaSection() {
   const [serverError, setServerError] = useState("");
 
   // Delete states
-  const [deletingItem, setDeletingItem] = useState<BookSeva | null>(null);
+  const [deletingItem, setDeletingItem] = useState<BookSevaRead | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchCurrentUser = useCallback(async () => {
     try {
-      const user = await doRequest("/me");
+      const user = await authApi.getCurrentUser();
       setCurrentUser(user);
     } catch (error) {
       console.error("Failed to fetch current user:", error);
+      if (error instanceof ApiServiceError && error.status === 401) {
+        // User is not authenticated, this will be handled by the auth interceptor
+        return;
+      }
     }
   }, []);
 
   const fetchBookSevas = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await doRequest("/book-seva");
+      const data = await bookSevaApi.getAll();
       setBookSevas(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch book sevas:", error);
-      toast.error("Failed to load book sevas");
+      if (error instanceof ApiServiceError) {
+        if (error.status !== 401) { // Don't show error for auth issues
+          toast.error("Failed to load book sevas: " + error.message);
+        }
+      } else {
+        toast.error("Failed to load book sevas");
+      }
       setBookSevas([]);
     } finally {
       setLoading(false);
@@ -127,8 +92,10 @@ export default function BookSevaSection() {
   }, []);
 
   useEffect(() => {
-    fetchCurrentUser();
-    fetchBookSevas();
+    if (apiUtils.isAuthenticated()) {
+      fetchCurrentUser();
+      fetchBookSevas();
+    }
   }, [fetchCurrentUser, fetchBookSevas]);
 
   const filteredBookSevas = useMemo(() => {
@@ -136,7 +103,9 @@ export default function BookSevaSection() {
       const matchesSearch = searchQuery === "" || 
         item.sevadar_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.book_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.seva_place.toLowerCase().includes(searchQuery.toLowerCase());
+        item.seva_place.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.district.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesFilter = bookTypeFilter === "all" || item.book_type === bookTypeFilter;
       
@@ -144,7 +113,7 @@ export default function BookSevaSection() {
     });
   }, [bookSevas, searchQuery, bookTypeFilter]);
 
-  const validateForm = useCallback((data: CreateBookSevaRequest): Record<string, string> => {
+  const validateForm = useCallback((data: BookSevaCreate): Record<string, string> => {
     const errors: Record<string, string> = {};
     
     if (!data.date) errors.date = "Date is required";
@@ -155,35 +124,46 @@ export default function BookSevaSection() {
     if (!data.book_name) errors.book_name = "Book name is required";
     if (!data.book_type) errors.book_type = "Book type is required";
     if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
+    if (!data.coordinator_name.trim()) errors.coordinator_name = "Coordinator name is required";
+    if (!data.driver_name.trim()) errors.driver_name = "Driver name is required";
     
     return errors;
   }, []);
 
-  const openModal = useCallback((item?: BookSeva) => {
+  const openModal = useCallback((item?: BookSevaRead) => {
     setEditingItem(item || null);
-    setFormData(item ? {
-      date: item.date.slice(0, 16),
-      state: item.state,
-      district: item.district,
-      seva_place: item.seva_place,
-      sevadar_name: item.sevadar_name,
-      book_name: item.book_name,
-      book_type: item.book_type,
-      quantity: item.quantity,
-      coordinator_name: item.coordinator_name,
-      driver_name: item.driver_name,
-    } : {
-      date: new Date().toISOString().slice(0, 16),
-      state: "",
-      district: "",
-      seva_place: "",
-      sevadar_name: "",
-      book_name: "",
-      book_type: "free",
-      quantity: 1,
-      coordinator_name: currentUser?.name || "",
-      driver_name: "",
-    });
+    
+    if (item) {
+      // Convert ISO string to datetime-local format
+      const dateValue = item.date ? new Date(item.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16);
+      
+      setFormData({
+        date: dateValue,
+        state: item.state,
+        district: item.district,
+        seva_place: item.seva_place,
+        sevadar_name: item.sevadar_name,
+        book_name: item.book_name,
+        book_type: item.book_type,
+        quantity: item.quantity,
+        coordinator_name: item.coordinator_name,
+        driver_name: item.driver_name,
+      });
+    } else {
+      setFormData({
+        date: new Date().toISOString().slice(0, 16),
+        state: "",
+        district: "",
+        seva_place: "",
+        sevadar_name: "",
+        book_name: "" as BookName,
+        book_type: "free",
+        quantity: 1,
+        coordinator_name: currentUser?.name || "",
+        driver_name: "",
+      });
+    }
+    
     setFormErrors({});
     setServerError("");
     setIsModalOpen(true);
@@ -198,7 +178,7 @@ export default function BookSevaSection() {
       district: "",
       seva_place: "",
       sevadar_name: "",
-      book_name: "",
+      book_name: "" as BookName,
       book_type: "free",
       quantity: 1,
       coordinator_name: currentUser?.name || "",
@@ -208,7 +188,7 @@ export default function BookSevaSection() {
     setServerError("");
   }, [currentUser]);
 
-  const handleFormChange = useCallback((field: keyof CreateBookSevaRequest, value: string | number) => {
+  const handleFormChange = useCallback((field: keyof BookSevaCreate, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: "" }));
@@ -228,29 +208,28 @@ export default function BookSevaSection() {
     setServerError("");
 
     try {
-      const payload = {
+      const payload: BookSevaCreate = {
         ...formData,
         date: new Date(formData.date).toISOString(),
       };
 
       if (editingItem) {
-        await doRequest(`/book-seva/${editingItem.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
+        const updatePayload: BookSevaUpdate = payload;
+        await bookSevaApi.update(editingItem.id, updatePayload);
         toast.success("Book seva updated successfully");
       } else {
-        await doRequest("/book-seva", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        await bookSevaApi.create(payload);
         toast.success("Book seva created successfully");
       }
 
       closeModal();
       fetchBookSevas();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "An error occurred");
+      if (error instanceof ApiServiceError) {
+        setServerError(apiUtils.formatError(error));
+      } else {
+        setServerError("An unexpected error occurred");
+      }
     } finally {
       setModalLoading(false);
     }
@@ -261,14 +240,15 @@ export default function BookSevaSection() {
 
     setDeleteLoading(true);
     try {
-      await doRequest(`/book-seva/${deletingItem.id}`, {
-        method: "DELETE",
-      });
-      toast.success("Book seva deleted successfully");
+      await bookSevaApi.delete(deletingItem.id);
       setDeletingItem(null);
       fetchBookSevas();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete book seva");
+      if (error instanceof ApiServiceError) {
+        toast.error("Failed to delete book seva: " + error.message);
+      } else {
+        toast.error("Failed to delete book seva");
+      }
     } finally {
       setDeleteLoading(false);
     }
@@ -325,13 +305,13 @@ export default function BookSevaSection() {
         <div className="flex-1 max-w-md">
           <Input
             type="text"
-            placeholder="Search by sevadar, book name, or place..."
+            placeholder="Search by sevadar, book name, place, state, or district..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-card"
           />
         </div>
-        <Select value={bookTypeFilter} onValueChange={(value: "all" | "free" | "paid") => setBookTypeFilter(value)}>
+        <Select value={bookTypeFilter} onValueChange={(value: "all" | BookType) => setBookTypeFilter(value)}>
           <SelectTrigger className="w-32 bg-card">
             <SelectValue />
           </SelectTrigger>
@@ -410,7 +390,7 @@ export default function BookSevaSection() {
                             aria-label={`Edit ${item.sevadar_name} record`}
                             className="h-8 w-8 p-0 hover:bg-muted"
                           >
-                            <BookText className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -421,7 +401,7 @@ export default function BookSevaSection() {
                                 aria-label={`Delete ${item.sevadar_name} record`}
                                 className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
                               >
-                                <ChevronUp className="h-4 w-4 rotate-180" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -530,7 +510,7 @@ export default function BookSevaSection() {
 
               <div className="space-y-2">
                 <Label htmlFor="book_name">Book Name *</Label>
-                <Select value={formData.book_name} onValueChange={(value) => handleFormChange("book_name", value)}>
+                <Select value={formData.book_name} onValueChange={(value: BookName) => handleFormChange("book_name", value)}>
                   <SelectTrigger className={formErrors.book_name ? "border-destructive" : ""}>
                     <SelectValue placeholder="Select book name" />
                   </SelectTrigger>
@@ -547,7 +527,7 @@ export default function BookSevaSection() {
 
               <div className="space-y-2">
                 <Label htmlFor="book_type">Book Type *</Label>
-                <Select value={formData.book_type} onValueChange={(value: "free" | "paid") => handleFormChange("book_type", value)}>
+                <Select value={formData.book_type} onValueChange={(value: BookType) => handleFormChange("book_type", value)}>
                   <SelectTrigger className={formErrors.book_type ? "border-destructive" : ""}>
                     <SelectValue />
                   </SelectTrigger>
@@ -573,21 +553,25 @@ export default function BookSevaSection() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="coordinator_name">Coordinator Name</Label>
+                <Label htmlFor="coordinator_name">Coordinator Name *</Label>
                 <Input
                   id="coordinator_name"
                   value={formData.coordinator_name}
                   onChange={(e) => handleFormChange("coordinator_name", e.target.value)}
+                  className={formErrors.coordinator_name ? "border-destructive" : ""}
                 />
+                {formErrors.coordinator_name && <p className="text-sm text-destructive">{formErrors.coordinator_name}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="driver_name">Driver Name</Label>
+                <Label htmlFor="driver_name">Driver Name *</Label>
                 <Input
                   id="driver_name"
                   value={formData.driver_name}
                   onChange={(e) => handleFormChange("driver_name", e.target.value)}
+                  className={formErrors.driver_name ? "border-destructive" : ""}
                 />
+                {formErrors.driver_name && <p className="text-sm text-destructive">{formErrors.driver_name}</p>}
               </div>
             </div>
 

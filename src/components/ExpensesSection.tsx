@@ -1,163 +1,188 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Edit2, Trash2, Receipt } from "lucide-react";
+import { Receipt, DollarSign, Edit, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import {
+  expensesApi,
+  authApi,
+  type ExpenseRead,
+  type ExpenseCreate,
+  type ExpenseUpdate,
+  type ExpenseCategory,
+  type User,
+  ApiServiceError,
+  apiUtils
+} from "@/lib/api";
 
-interface Expense {
-  id: number;
-  item_name: string;
-  item_price: number;
-  quantity: number;
-  total_amount?: number;
-  category: "seva" | "naamdaan";
-  date?: string;
-  created_at?: string;
-}
-
-interface ExpenseFormData {
-  item_name: string;
-  item_price: string;
-  quantity: string;
-  total_amount: string;
-  category: "seva" | "naamdaan" | "";
-  date: string;
-}
-
-const initialFormData: ExpenseFormData = {
-  item_name: "",
-  item_price: "",
-  quantity: "1",
-  total_amount: "",
-  category: "",
-  date: new Date().toISOString().split("T")[0],
-};
+const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
+  { value: "seva", label: "Seva" },
+  { value: "naamdaan", label: "Naamdaan" }
+];
 
 export default function ExpensesSection() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | ExpenseCategory>("all");
+  
+  // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "seva" | "naamdaan">("all");
-  const [formData, setFormData] = useState<ExpenseFormData>(initialFormData);
-  const [formErrors, setFormErrors] = useState<Partial<ExpenseFormData>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState("");
+  const [editingItem, setEditingItem] = useState<ExpenseRead | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  
+  // Form states
+  const [formData, setFormData] = useState<ExpenseCreate>({
+    item_name: "",
+    item_price: 0,
+    quantity: 1,
+    total_amount: 0,
+    category: "seva",
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState("");
+
+  // Delete states
+  const [deletingItem, setDeletingItem] = useState<ExpenseRead | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const user = await authApi.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+      if (error instanceof ApiServiceError && error.status === 401) {
+        return;
+      }
+    }
+  }, []);
 
   const fetchExpenses = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://localhost:8000/api/expenses");
-      if (!response.ok) throw new Error("Failed to fetch expenses");
-      const data = await response.json();
-      setExpenses(data);
+      const data = await expensesApi.getAll();
+      setExpenses(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching expenses:", error);
-      toast.error("Failed to load expenses");
+      console.error("Failed to fetch expenses:", error);
+      if (error instanceof ApiServiceError) {
+        if (error.status !== 401) {
+          toast.error("Failed to load expenses: " + error.message);
+        }
+      } else {
+        toast.error("Failed to load expenses");
+      }
+      setExpenses([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses]);
-
-  const filteredExpenses = expenses.filter(expense => 
-    categoryFilter === "all" || expense.category === categoryFilter
-  );
-
-  const grandTotal = filteredExpenses.reduce((sum, expense) => {
-    const total = expense.total_amount ?? (expense.item_price * expense.quantity);
-    return sum + total;
-  }, 0);
-
-  const validateForm = (data: ExpenseFormData): Partial<ExpenseFormData> => {
-    const errors: Partial<ExpenseFormData> = {};
-
-    if (!data.item_name.trim()) {
-      errors.item_name = "Item name is required";
+    if (apiUtils.isAuthenticated()) {
+      fetchCurrentUser();
+      fetchExpenses();
     }
+  }, [fetchCurrentUser, fetchExpenses]);
 
-    const price = parseFloat(data.item_price);
-    if (!data.item_price || isNaN(price) || price <= 0) {
-      errors.item_price = "Valid price greater than 0 is required";
-    }
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((item) => {
+      const matchesSearch = searchQuery === "" || 
+        item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesFilter = categoryFilter === "all" || item.category === categoryFilter;
+      
+      return matchesSearch && matchesFilter;
+    });
+  }, [expenses, searchQuery, categoryFilter]);
 
-    const quantity = parseInt(data.quantity);
-    if (!data.quantity || isNaN(quantity) || quantity < 1) {
-      errors.quantity = "Quantity must be at least 1";
-    }
+  const totalExpenses = useMemo(() => {
+    return filteredExpenses.reduce((sum, expense) => sum + expense.total_amount, 0);
+  }, [filteredExpenses]);
 
-    if (!data.category) {
-      errors.category = "Category is required";
-    }
-
+  const validateForm = useCallback((data: ExpenseCreate): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    
+    if (!data.item_name.trim()) errors.item_name = "Item name is required";
+    if (!data.item_price || data.item_price <= 0) errors.item_price = "Item price must be greater than 0";
+    if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
+    if (!data.total_amount || data.total_amount <= 0) errors.total_amount = "Total amount must be greater than 0";
+    if (!data.category) errors.category = "Category is required";
+    
     return errors;
-  };
+  }, []);
 
-  const handleFormChange = (field: keyof ExpenseFormData, value: string) => {
-    const newData = { ...formData, [field]: value };
+  const openModal = useCallback((item?: ExpenseRead) => {
+    setEditingItem(item || null);
+    
+    if (item) {
+      setFormData({
+        item_name: item.item_name,
+        item_price: item.item_price,
+        quantity: item.quantity,
+        total_amount: item.total_amount,
+        category: item.category,
+      });
+    } else {
+      setFormData({
+        item_name: "",
+        item_price: 0,
+        quantity: 1,
+        total_amount: 0,
+        category: "seva",
+      });
+    }
+    
+    setFormErrors({});
+    setServerError("");
+    setIsModalOpen(true);
+  }, []);
 
-    // Auto-calculate total amount when price or quantity changes
-    if (field === "item_price" || field === "quantity") {
-      const price = parseFloat(newData.item_price) || 0;
-      const quantity = parseInt(newData.quantity) || 0;
-      if (price > 0 && quantity > 0) {
-        newData.total_amount = (price * quantity).toFixed(2);
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setEditingItem(null);
+    setFormData({
+      item_name: "",
+      item_price: 0,
+      quantity: 1,
+      total_amount: 0,
+      category: "seva",
+    });
+    setFormErrors({});
+    setServerError("");
+  }, []);
+
+  const handleFormChange = useCallback((field: keyof ExpenseCreate, value: string | number) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Auto-calculate total amount when price or quantity changes
+      if (field === "item_price" || field === "quantity") {
+        const price = field === "item_price" ? Number(value) : newData.item_price;
+        const quantity = field === "quantity" ? Number(value) : newData.quantity;
+        newData.total_amount = price * quantity;
       }
-    }
-
-    setFormData(newData);
-
-    // Clear field error when user starts typing
+      
+      return newData;
+    });
+    
     if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: undefined }));
+      setFormErrors(prev => ({ ...prev, [field]: "" }));
     }
-  };
+  }, [formErrors]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     const errors = validateForm(formData);
@@ -166,408 +191,348 @@ export default function ExpensesSection() {
       return;
     }
 
-    setIsSubmitting(true);
-    setApiError("");
+    setModalLoading(true);
+    setServerError("");
 
     try {
-      const payload = {
-        item_name: formData.item_name.trim(),
-        item_price: parseFloat(formData.item_price),
-        quantity: parseInt(formData.quantity),
-        total_amount: parseFloat(formData.total_amount),
-        category: formData.category,
-        ...(formData.date && { date: formData.date }),
-      };
-
-      const url = editingExpense ? `/api/expenses/${editingExpense.id}` : "/api/expenses";
-      const method = editingExpense ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to save expense");
+      if (editingItem) {
+        const updatePayload: ExpenseUpdate = formData;
+        await expensesApi.update(editingItem.id, updatePayload);
+        toast.success("Expense updated successfully");
+      } else {
+        await expensesApi.create(formData);
+        toast.success("Expense created successfully");
       }
 
-      toast.success(editingExpense ? "Expense updated successfully" : "Expense created successfully");
-      setIsModalOpen(false);
-      resetForm();
+      closeModal();
       fetchExpenses();
     } catch (error) {
-      console.error("Error saving expense:", error);
-      setApiError(error instanceof Error ? error.message : "Failed to save expense");
+      if (error instanceof ApiServiceError) {
+        setServerError(apiUtils.formatError(error));
+      } else {
+        setServerError("An unexpected error occurred");
+      }
     } finally {
-      setIsSubmitting(false);
+      setModalLoading(false);
     }
-  };
+  }, [formData, editingItem, validateForm, closeModal, fetchExpenses]);
 
-  const resetForm = () => {
-    setFormData(initialFormData);
-    setFormErrors({});
-    setApiError("");
-    setEditingExpense(null);
-  };
+  const handleDelete = useCallback(async () => {
+    if (!deletingItem) return;
 
-  const handleEdit = (expense: Expense) => {
-    setEditingExpense(expense);
-    setFormData({
-      item_name: expense.item_name,
-      item_price: expense.item_price.toString(),
-      quantity: expense.quantity.toString(),
-      total_amount: (expense.total_amount ?? (expense.item_price * expense.quantity)).toString(),
-      category: expense.category,
-      date: expense.date || expense.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async () => {
-    if (!deletingExpense) return;
-
-    setIsSubmitting(true);
+    setDeleteLoading(true);
     try {
-      const response = await fetch(`/api/expenses/${deletingExpense.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) throw new Error("Failed to delete expense");
-
-      toast.success("Expense deleted successfully");
-      setIsDeleteDialogOpen(false);
-      setDeletingExpense(null);
+      await expensesApi.delete(deletingItem.id);
+      setDeletingItem(null);
       fetchExpenses();
     } catch (error) {
-      console.error("Error deleting expense:", error);
-      toast.error("Failed to delete expense");
+      if (error instanceof ApiServiceError) {
+        toast.error("Failed to delete expense: " + error.message);
+      } else {
+        toast.error("Failed to delete expense");
+      }
     } finally {
-      setIsSubmitting(false);
+      setDeleteLoading(false);
     }
-  };
+  }, [deletingItem, fetchExpenses]);
 
-  const openDeleteDialog = (expense: Expense) => {
-    setDeletingExpense(expense);
-    setIsDeleteDialogOpen(true);
-  };
+  const formatCurrency = useCallback((amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Card>
+          <CardContent className="p-0">
+            <div className="space-y-3 p-6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-heading font-bold text-foreground">Expenses</h1>
+          <p className="text-muted-foreground">Track and manage expense records</p>
+        </div>
+        <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
+          <Receipt className="h-4 w-4 mr-2" />
+          Add New
+        </Button>
+      </div>
+
+      {/* Summary Card */}
+      {filteredExpenses.length > 0 && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Expenses</p>
+                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalExpenses)}</p>
+                <p className="text-sm text-muted-foreground">{filteredExpenses.length} items</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex items-center gap-4">
-          <Dialog open={isModalOpen} onOpenChange={(open) => {
-            setIsModalOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add New Expense
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingExpense ? "Edit Expense" : "Add New Expense"}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingExpense ? "Update the expense details below." : "Enter the details for the new expense."}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label htmlFor="item_name">Item Name *</Label>
-                    <Input
-                      id="item_name"
-                      value={formData.item_name}
-                      onChange={(e) => handleFormChange("item_name", e.target.value)}
-                      placeholder="Enter item name"
-                      aria-describedby={formErrors.item_name ? "item_name_error" : undefined}
-                    />
-                    {formErrors.item_name && (
-                      <p id="item_name_error" className="text-sm text-destructive mt-1">
-                        {formErrors.item_name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="item_price">Item Price *</Label>
-                    <Input
-                      id="item_price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.item_price}
-                      onChange={(e) => handleFormChange("item_price", e.target.value)}
-                      placeholder="0.00"
-                      aria-describedby={formErrors.item_price ? "item_price_error" : undefined}
-                    />
-                    {formErrors.item_price && (
-                      <p id="item_price_error" className="text-sm text-destructive mt-1">
-                        {formErrors.item_price}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="quantity">Quantity *</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="1"
-                      value={formData.quantity}
-                      onChange={(e) => handleFormChange("quantity", e.target.value)}
-                      placeholder="1"
-                      aria-describedby={formErrors.quantity ? "quantity_error" : undefined}
-                    />
-                    {formErrors.quantity && (
-                      <p id="quantity_error" className="text-sm text-destructive mt-1">
-                        {formErrors.quantity}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="total_amount">Total Amount</Label>
-                    <Input
-                      id="total_amount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.total_amount}
-                      onChange={(e) => handleFormChange("total_amount", e.target.value)}
-                      placeholder="Auto-calculated"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="category">Category *</Label>
-                    <Select
-                      value={formData.category}
-                      onValueChange={(value) => handleFormChange("category", value)}
-                    >
-                      <SelectTrigger aria-describedby={formErrors.category ? "category_error" : undefined}>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="seva">Seva</SelectItem>
-                        <SelectItem value="naamdaan">Naamdaan</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {formErrors.category && (
-                      <p id="category_error" className="text-sm text-destructive mt-1">
-                        {formErrors.category}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => handleFormChange("date", e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {apiError && (
-                  <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-                    {apiError}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsModalOpen(false)}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? "Saving..." : editingExpense ? "Update" : "Create"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          <Badge variant="secondary" className="gap-1">
-            <Receipt className="h-3 w-3" />
-            Total: ${grandTotal.toFixed(2)}
-          </Badge>
+      <div className="flex items-center gap-4">
+        <div className="flex-1 max-w-md">
+          <Input
+            type="text"
+            placeholder="Search by item name or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-card"
+          />
         </div>
-
-        <div className="flex items-center gap-2">
-          <Label htmlFor="category-filter" className="text-sm font-medium">
-            Filter:
-          </Label>
-          <Select
-            value={categoryFilter}
-            onValueChange={(value: "all" | "seva" | "naamdaan") => setCategoryFilter(value)}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="seva">Seva</SelectItem>
-              <SelectItem value="naamdaan">Naamdaan</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={categoryFilter} onValueChange={(value: "all" | ExpenseCategory) => setCategoryFilter(value)}>
+          <SelectTrigger className="w-40 bg-card">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {EXPENSE_CATEGORIES.map((category) => (
+              <SelectItem key={category.value} value={category.value}>
+                {category.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Expenses</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex gap-4">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-              ))}
-            </div>
-          ) : filteredExpenses.length === 0 ? (
-            <div className="text-center py-12">
-              <Receipt className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No expenses found</h3>
-              <p className="text-muted-foreground mb-4">
-                {categoryFilter === "all" 
-                  ? "Get started by adding your first expense."
-                  : `No ${categoryFilter} expenses found. Try a different filter or add a new expense.`
-                }
-              </p>
-              <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add New Expense
+      {filteredExpenses.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <DollarSign className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle className="mb-2">No expenses found</CardTitle>
+            <CardDescription className="mb-4">
+              {expenses.length === 0 ? "Get started by adding your first expense record." : "No records match your search criteria."}
+            </CardDescription>
+            {expenses.length === 0 && (
+              <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
+                <Receipt className="h-4 w-4 mr-2" />
+                Add First Expense
               </Button>
-            </div>
-          ) : (
-            <>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                  <TableRow className="border-b border-border bg-muted/30">
+                    <TableHead className="font-medium text-muted-foreground">Item Name</TableHead>
+                    <TableHead className="font-medium text-muted-foreground">Price</TableHead>
+                    <TableHead className="font-medium text-muted-foreground">Quantity</TableHead>
+                    <TableHead className="font-medium text-muted-foreground">Total Amount</TableHead>
+                    <TableHead className="font-medium text-muted-foreground">Category</TableHead>
+                    <TableHead className="font-medium text-muted-foreground w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredExpenses.map((expense) => {
-                    const computedTotal = expense.item_price * expense.quantity;
-                    const displayTotal = expense.total_amount ?? computedTotal;
-                    
-                    return (
-                      <TableRow key={expense.id}>
-                        <TableCell>
-                          {expense.date || expense.created_at?.split("T")[0] || "—"}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {expense.item_name}
-                        </TableCell>
-                        <TableCell>${expense.item_price.toFixed(2)}</TableCell>
-                        <TableCell>{expense.quantity}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span>${displayTotal.toFixed(2)}</span>
-                            {expense.total_amount && expense.total_amount !== computedTotal && (
-                              <span className="text-xs text-muted-foreground">
-                                (computed: ${computedTotal.toFixed(2)})
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={expense.category === "seva" ? "default" : "secondary"}>
-                            {expense.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(expense)}
-                              aria-label={`Edit ${expense.item_name}`}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openDeleteDialog(expense)}
-                              aria-label={`Delete ${expense.item_name}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredExpenses.map((item) => (
+                    <TableRow key={item.id} className="border-b border-border hover:bg-muted/20">
+                      <TableCell className="font-medium">{item.item_name}</TableCell>
+                      <TableCell>{formatCurrency(item.item_price)}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(item.total_amount)}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md capitalize ${
+                          item.category === "seva"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : "bg-purple-50 text-purple-700 border border-purple-200"
+                        }`}>
+                          {item.category}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openModal(item)}
+                            aria-label={`Edit ${item.item_name} expense`}
+                            className="h-8 w-8 p-0 hover:bg-muted"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeletingItem(item)}
+                                aria-label={`Delete ${item.item_name} expense`}
+                                className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Expense Record</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete the expense record for <strong>{item.item_name}</strong> worth <strong>{formatCurrency(item.total_amount)}</strong>? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={handleDelete}
+                                  disabled={deleteLoading}
+                                  className="bg-destructive hover:bg-destructive/90"
+                                >
+                                  {deleteLoading ? "Deleting..." : "Delete"}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              {/* Sticky Footer with Grand Total */}
-              <div className="sticky bottom-0 bg-card border-t mt-4 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Showing {filteredExpenses.length} expenses
-                  </span>
-                  <div className="text-lg font-semibold">
-                    Grand Total: ${grandTotal.toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            </>
+      {/* Add/Edit Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? "Edit Expense" : "Add New Expense"}</DialogTitle>
+            <DialogDescription>
+              {editingItem ? "Update the expense record details." : "Fill in the details for the new expense record."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {serverError && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
+              {serverError}
+            </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Expense</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deletingExpense?.item_name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isSubmitting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isSubmitting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="item_name">Item Name *</Label>
+                <Input
+                  id="item_name"
+                  placeholder="Enter item name"
+                  value={formData.item_name}
+                  onChange={(e) => handleFormChange("item_name", e.target.value)}
+                  className={formErrors.item_name ? "border-destructive" : ""}
+                />
+                {formErrors.item_name && <p className="text-sm text-destructive">{formErrors.item_name}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="item_price">Item Price *</Label>
+                <Input
+                  id="item_price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.item_price || ""}
+                  onChange={(e) => handleFormChange("item_price", parseFloat(e.target.value) || 0)}
+                  className={formErrors.item_price ? "border-destructive" : ""}
+                />
+                {formErrors.item_price && <p className="text-sm text-destructive">{formErrors.item_price}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  value={formData.quantity || ""}
+                  onChange={(e) => handleFormChange("quantity", parseInt(e.target.value) || 1)}
+                  className={formErrors.quantity ? "border-destructive" : ""}
+                />
+                {formErrors.quantity && <p className="text-sm text-destructive">{formErrors.quantity}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="total_amount">Total Amount *</Label>
+                <Input
+                  id="total_amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.total_amount || ""}
+                  onChange={(e) => handleFormChange("total_amount", parseFloat(e.target.value) || 0)}
+                  className={formErrors.total_amount ? "border-destructive" : ""}
+                />
+                {formErrors.total_amount && <p className="text-sm text-destructive">{formErrors.total_amount}</p>}
+                <p className="text-xs text-muted-foreground">
+                  Auto-calculated: {formatCurrency((formData.item_price || 0) * (formData.quantity || 1))}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select value={formData.category} onValueChange={(value: ExpenseCategory) => handleFormChange("category", value)}>
+                  <SelectTrigger className={formErrors.category ? "border-destructive" : ""}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_CATEGORIES.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formErrors.category && <p className="text-sm text-destructive">{formErrors.category}</p>}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={closeModal} disabled={modalLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={modalLoading} className="bg-primary hover:bg-primary/90">
+                {modalLoading ? "Saving..." : editingItem ? "Update" : "Create"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
