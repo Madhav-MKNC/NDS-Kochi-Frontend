@@ -88,7 +88,7 @@ export default function ExpensesSection() {
   const fetchExpenses = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/expenses");
+      const response = await fetch("https://localhost:8000/api/expenses");
       if (!response.ok) throw new Error("Failed to fetch expenses");
       const data = await response.json();
       setExpenses(data);

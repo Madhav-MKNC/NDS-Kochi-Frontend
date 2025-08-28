@@ -62,7 +62,7 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
       formData.append("username", email);
       formData.append("password", password);
 
-      const response = await fetch("/login-init", {
+      const response = await fetch("https://localhost:8000/login-init", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -97,7 +97,7 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/verify-otp", {
+      const response = await fetch("https://localhost:8000/verify-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -118,7 +118,7 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
 
         // Fetch user profile
         try {
-          await fetch("/me", {
+          await fetch("https://localhost:8000/me", {
             headers: {
               "Authorization": `${data.token_type || "bearer"} ${data.access_token}`,
             },

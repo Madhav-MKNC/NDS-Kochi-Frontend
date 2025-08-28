@@ -70,7 +70,7 @@ export default function CallingSevaSection() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/calling-seva', {
+      const response = await fetch('https://localhost:8000/api/calling-seva', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

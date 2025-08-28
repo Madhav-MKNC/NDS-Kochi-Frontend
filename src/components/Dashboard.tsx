@@ -195,9 +195,9 @@ export default function Dashboard() {
       setError(null);
 
       const [booksResponse, callsResponse, expensesResponse] = await Promise.all([
-        fetch('/api/book-seva'),
-        fetch('/api/calling-seva'),
-        fetch('/api/expenses')
+        fetch('https://localhost:8000/api/book-seva'),
+        fetch('https://localhost:8000/api/calling-seva'),
+        fetch('https://localhost:8000/api/expenses')
       ]);
 
       const books = booksResponse.ok ? await booksResponse.json() : [];
