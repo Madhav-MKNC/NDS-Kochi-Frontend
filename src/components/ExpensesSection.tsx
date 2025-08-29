@@ -497,7 +497,7 @@ export default function ExpensesSection() {
                   step="0.01"
                   placeholder="0.00"
                   value={formData.total_amount || ""}
-                  onChange={(e) => handleFormChange("total_amount", parseFloat(e.target.value) || 0)}
+                  disabled
                   className={formErrors.total_amount ? "border-destructive" : ""}
                 />
                 {formErrors.total_amount && <p className="text-sm text-destructive">{formErrors.total_amount}</p>}
