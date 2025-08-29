@@ -33,12 +33,12 @@ export default function CallingSevaSection() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CallingSevaStatus>("all");
-  
+
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CallingSevaRead | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
-  
+
   // Form states
   const [formData, setFormData] = useState<CallingSevaCreate>({
     date: new Date().toISOString().slice(0, 16),
@@ -89,28 +89,31 @@ export default function CallingSevaSection() {
 
   useEffect(() => {
     if (apiUtils.isAuthenticated()) {
-      fetchCurrentUser();
+      // fetchCurrentUser();
       fetchCallingSevas();
     }
-  }, [fetchCurrentUser, fetchCallingSevas]);
+  }, [
+    // fetchCurrentUser,
+    fetchCallingSevas
+  ]);
 
   const filteredCallingSevas = useMemo(() => {
     return callingSevas.filter((item) => {
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch = searchQuery === "" ||
         item.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.mobile_no.includes(searchQuery) ||
         item.assigned_bhagat_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.remarks && item.remarks.toLowerCase().includes(searchQuery.toLowerCase()));
-      
+
       const matchesFilter = statusFilter === "all" || item.status === statusFilter;
-      
+
       return matchesSearch && matchesFilter;
     });
   }, [callingSevas, searchQuery, statusFilter]);
 
   const validateForm = useCallback((data: CallingSevaCreate): Record<string, string> => {
     const errors: Record<string, string> = {};
-    
+
     if (!data.date) errors.date = "Date is required";
     if (!data.address.trim()) errors.address = "Address is required";
     if (!data.mobile_no.trim()) {
@@ -120,16 +123,16 @@ export default function CallingSevaSection() {
     }
     if (!data.status) errors.status = "Status is required";
     if (!data.assigned_bhagat_name) errors.assigned_bhagat_name = "Assigned bhagat is required";
-    
+
     return errors;
   }, []);
 
   const openModal = useCallback((item?: CallingSevaRead) => {
     setEditingItem(item || null);
-    
+
     if (item) {
       const dateValue = item.date ? new Date(item.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16);
-      
+
       setFormData({
         date: dateValue,
         address: item.address,
@@ -148,7 +151,7 @@ export default function CallingSevaSection() {
         remarks: "",
       });
     }
-    
+
     setFormErrors({});
     setServerError("");
     setIsModalOpen(true);
@@ -178,7 +181,7 @@ export default function CallingSevaSection() {
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const errors = validateForm(formData);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -352,11 +355,10 @@ export default function CallingSevaSection() {
                       <TableCell className="max-w-xs truncate">{item.address}</TableCell>
                       <TableCell className="font-mono">{formatMobileNumber(item.mobile_no)}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
-                          item.status === "interested"
-                            ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-red-50 text-red-700 border border-red-200"
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${item.status === "interested"
+                          ? "bg-green-50 text-green-700 border border-green-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
+                          }`}>
                           {item.status}
                         </span>
                       </TableCell>
@@ -424,7 +426,7 @@ export default function CallingSevaSection() {
               {editingItem ? "Update the calling seva record details." : "Fill in the details for the new calling seva record."}
             </DialogDescription>
           </DialogHeader>
-          
+
           {serverError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {serverError}

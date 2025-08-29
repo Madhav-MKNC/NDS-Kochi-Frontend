@@ -12,8 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, BookText, ChevronUp, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { 
-  bookSevaApi, 
+import {
+  bookSevaApi,
   authApi,
   type BookSevaRead,
   type BookSevaCreate,
@@ -32,12 +32,12 @@ export default function BookSevaSection() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [bookTypeFilter, setBookTypeFilter] = useState<"all" | BookType>("all");
-  
+
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<BookSevaRead | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
-  
+
   // Form states
   const [formData, setFormData] = useState<BookSevaCreate>({
     date: new Date().toISOString().slice(0, 16),
@@ -93,29 +93,32 @@ export default function BookSevaSection() {
 
   useEffect(() => {
     if (apiUtils.isAuthenticated()) {
-      fetchCurrentUser();
+      // fetchCurrentUser();
       fetchBookSevas();
     }
-  }, [fetchCurrentUser, fetchBookSevas]);
+  }, [
+    // fetchCurrentUser,
+    fetchBookSevas
+  ]);
 
   const filteredBookSevas = useMemo(() => {
     return bookSevas.filter((item) => {
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch = searchQuery === "" ||
         item.sevadar_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.book_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.seva_place.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.district.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesFilter = bookTypeFilter === "all" || item.book_type === bookTypeFilter;
-      
+
       return matchesSearch && matchesFilter;
     });
   }, [bookSevas, searchQuery, bookTypeFilter]);
 
   const validateForm = useCallback((data: BookSevaCreate): Record<string, string> => {
     const errors: Record<string, string> = {};
-    
+
     if (!data.date) errors.date = "Date is required";
     if (!data.state.trim()) errors.state = "State is required";
     if (!data.district.trim()) errors.district = "District is required";
@@ -126,17 +129,17 @@ export default function BookSevaSection() {
     if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
     if (!data.coordinator_name.trim()) errors.coordinator_name = "Coordinator name is required";
     if (!data.driver_name.trim()) errors.driver_name = "Driver name is required";
-    
+
     return errors;
   }, []);
 
   const openModal = useCallback((item?: BookSevaRead) => {
     setEditingItem(item || null);
-    
+
     if (item) {
       // Convert ISO string to datetime-local format
       const dateValue = item.date ? new Date(item.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16);
-      
+
       setFormData({
         date: dateValue,
         state: item.state,
@@ -163,7 +166,7 @@ export default function BookSevaSection() {
         driver_name: "",
       });
     }
-    
+
     setFormErrors({});
     setServerError("");
     setIsModalOpen(true);
@@ -197,7 +200,7 @@ export default function BookSevaSection() {
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const errors = validateForm(formData);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -370,11 +373,10 @@ export default function BookSevaSection() {
                       <TableCell>{item.sevadar_name}</TableCell>
                       <TableCell className="capitalize">{item.book_name}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${
-                          item.book_type === "free" 
-                            ? "bg-green-50 text-green-700 border border-green-200" 
-                            : "bg-blue-50 text-blue-700 border border-blue-200"
-                        }`}>
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${item.book_type === "free"
+                          ? "bg-green-50 text-green-700 border border-green-200"
+                          : "bg-blue-50 text-blue-700 border border-blue-200"
+                          }`}>
                           {item.book_type}
                         </span>
                       </TableCell>
@@ -443,7 +445,7 @@ export default function BookSevaSection() {
               {editingItem ? "Update the book seva record details." : "Fill in the details for the new book seva record."}
             </DialogDescription>
           </DialogHeader>
-          
+
           {serverError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {serverError}

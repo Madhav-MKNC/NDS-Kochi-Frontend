@@ -52,7 +52,7 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
   const toggleTheme = useCallback(() => {
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
-    
+
     if (newDarkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
@@ -135,16 +135,15 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
       {navigationItems.map((item) => {
         const Icon = item.icon;
         const isActive = currentView === item.key;
-        
+
         return (
           <Button
             key={item.key}
             variant={isActive ? "default" : "ghost"}
-            className={`w-full justify-start gap-3 ${
-              isActive 
-                ? "bg-primary text-primary-foreground shadow-sm" 
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
+            className={`w-full justify-start gap-3 ${isActive
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
             onClick={() => handleNavigation(item.key)}
           >
             <Icon className="h-4 w-4" />
@@ -175,24 +174,32 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
               </SheetTrigger>
               <SheetContent side="left" className="w-80 p-0">
                 <div className="flex items-center gap-3 border-b border-border px-6 py-4">
-                  <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-                    <BookOpen className="h-4 w-4 text-primary-foreground" />
+                  <div className="w-8 h-8 flex items-center justify-center">
+                    <img
+                      src="/logo.jpg"
+                      alt="Logo"
+                      className="rounded-md"
+                    />
                   </div>
                   <div>
-                    <h2 className="font-heading font-semibold text-foreground">Seva Manager</h2>
+                    <h2 className="font-heading font-semibold text-foreground">NDS-Kochi</h2>
                     <p className="text-xs text-muted-foreground">Management System</p>
                   </div>
                 </div>
                 <NavigationContent isMobile />
               </SheetContent>
             </Sheet>
-            
+
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
-                <BookOpen className="h-4 w-4 text-primary-foreground" />
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img
+                  src="/logo.jpg"
+                  alt="Logo"
+                  className="rounded-md"
+                />
               </div>
               <div className="hidden sm:block">
-                <h1 className="font-heading font-semibold text-foreground">Seva Manager</h1>
+                <h1 className="font-heading font-semibold text-foreground">NDS-Kochi</h1>
                 <p className="text-xs text-muted-foreground">Management System</p>
               </div>
             </div>

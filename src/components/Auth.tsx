@@ -19,7 +19,7 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
   const [step, setStep] = useState<AuthStep>("login");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
-  
+
   // Login form state
   const [loginData, setLoginData] = useState<LoginInitRequest>({
     username: "",
@@ -36,45 +36,45 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
 
   const validateLoginForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!loginData.username.trim()) {
       errors.username = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginData.username)) {
       errors.username = "Please enter a valid email address";
     }
-    
+
     if (!loginData.password.trim()) {
       errors.password = "Password is required";
     } else if (loginData.password.length < 6) {
       errors.password = "Password must be at least 6 characters";
     }
-    
+
     setLoginErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const validateOtpForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!otpData.code.trim()) {
       errors.code = "OTP code is required";
     } else if (!/^\d{6}$/.test(otpData.code)) {
       errors.code = "OTP must be 6 digits";
     }
-    
+
     setOtpErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateLoginForm()) return;
 
     setLoading(true);
     try {
       const response = await authApi.loginInit(loginData);
-      
+
       if (response.msg === "OTP sent") {
         setEmail(loginData.username);
         setOtpData({ email: loginData.username, code: "" });
@@ -100,13 +100,13 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateOtpForm()) return;
 
     setLoading(true);
     try {
       const response = await authApi.verifyOtp(otpData);
-      
+
       if (response.access_token) {
         toast.success("Login successful!");
         onSuccessfulLogin();
@@ -136,7 +136,7 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
 
   const handleResendOtp = async () => {
     if (!email) return;
-    
+
     setLoading(true);
     try {
       await authApi.loginInit({ username: email, password: loginData.password });
@@ -187,10 +187,10 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
                 <p className="text-sm text-destructive">{otpErrors.code}</p>
               )}
             </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full bg-primary hover:bg-primary/90" 
+
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:bg-primary/90"
               disabled={loading}
             >
               {loading ? (
@@ -232,10 +232,10 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
   return (
     <Card className="w-full max-w-md mx-auto bg-card border-border shadow-lg">
       <CardHeader className="text-center space-y-3">
-        <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-          <Mail className="h-6 w-6 text-primary" />
+        <div className="mx-auto w-18 h-18 bg-primary/10 rounded-full flex items-center justify-center">
+          <img src="/logo.jpg" alt="Logo" className="h-full w-full rounded-md object-contain" />
         </div>
-        <CardTitle className="text-2xl font-heading text-foreground">Welcome Back</CardTitle>
+        <CardTitle className="text-2xl font-heading text-foreground">Sat Saheb 🙏</CardTitle>
         <CardDescription className="text-muted-foreground">
           Sign in to your account to continue
         </CardDescription>
@@ -287,10 +287,10 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
               <p className="text-sm text-destructive">{loginErrors.password}</p>
             )}
           </div>
-          
-          <Button 
-            type="submit" 
-            className="w-full bg-primary hover:bg-primary/90" 
+
+          <Button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary/90"
             disabled={loading}
           >
             {loading ? (
@@ -304,11 +304,11 @@ export default function Auth({ onSuccessfulLogin }: AuthProps) {
           </Button>
         </form>
 
-        <div className="text-center">
+        {/* <div className="text-center">
           <p className="text-sm text-muted-foreground">
             We'll send you an OTP to verify your identity
           </p>
-        </div>
+        </div> */}
       </CardContent>
     </Card>
   );

@@ -52,7 +52,7 @@ export default function Dashboard() {
   const [callingSevas, setCallingSevas] = useState<CallingSevaRead[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRead[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<'books' | 'calls' | 'expenses'>('books');
-  
+
   const fetchCurrentUser = useCallback(async () => {
     try {
       const user = await authApi.getCurrentUser();
@@ -65,7 +65,7 @@ export default function Dashboard() {
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const [bookSevasData, callingSevasData, expensesData] = await Promise.allSettled([
         bookSevaApi.getAll(),
         callingSevaApi.getAll(),
@@ -101,10 +101,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (apiUtils.isAuthenticated()) {
-      fetchCurrentUser();
+      // fetchCurrentUser();
       fetchAllData();
     }
-  }, [fetchCurrentUser, fetchAllData]);
+  }, [
+    // fetchCurrentUser,
+    fetchAllData
+  ]);
 
   const stats: DashboardStats = useMemo(() => {
     const bookStats = {
@@ -190,7 +193,7 @@ export default function Dashboard() {
             <Skeleton className="h-4 w-64 mt-2" />
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
@@ -353,14 +356,14 @@ export default function Dashboard() {
                   <span className="capitalize">{selectedMetric}</span>
                 </div>
               </div>
-              
+
               {/* Simple Bar Chart */}
               <div className="space-y-3">
                 {chartData.map((data, index) => {
                   const value = data[selectedMetric];
                   const maxValue = Math.max(...chartData.map(d => d[selectedMetric]));
                   const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-                  
+
                   return (
                     <div key={index} className="flex items-center gap-4">
                       <div className="w-20 text-sm text-muted-foreground">

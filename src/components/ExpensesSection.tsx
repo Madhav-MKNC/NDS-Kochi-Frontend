@@ -35,12 +35,12 @@ export default function ExpensesSection() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | ExpenseCategory>("all");
-  
+
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ExpenseRead | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
-  
+
   // Form states
   const [formData, setFormData] = useState<ExpenseCreate>({
     item_name: "",
@@ -90,19 +90,22 @@ export default function ExpensesSection() {
 
   useEffect(() => {
     if (apiUtils.isAuthenticated()) {
-      fetchCurrentUser();
+      // fetchCurrentUser();
       fetchExpenses();
     }
-  }, [fetchCurrentUser, fetchExpenses]);
+  }, [
+    // fetchCurrentUser, 
+    fetchExpenses
+  ]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((item) => {
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch = searchQuery === "" ||
         item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.category.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesFilter = categoryFilter === "all" || item.category === categoryFilter;
-      
+
       return matchesSearch && matchesFilter;
     });
   }, [expenses, searchQuery, categoryFilter]);
@@ -113,19 +116,19 @@ export default function ExpensesSection() {
 
   const validateForm = useCallback((data: ExpenseCreate): Record<string, string> => {
     const errors: Record<string, string> = {};
-    
+
     if (!data.item_name.trim()) errors.item_name = "Item name is required";
     if (!data.item_price || data.item_price <= 0) errors.item_price = "Item price must be greater than 0";
     if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
     if (!data.total_amount || data.total_amount <= 0) errors.total_amount = "Total amount must be greater than 0";
     if (!data.category) errors.category = "Category is required";
-    
+
     return errors;
   }, []);
 
   const openModal = useCallback((item?: ExpenseRead) => {
     setEditingItem(item || null);
-    
+
     if (item) {
       setFormData({
         item_name: item.item_name,
@@ -143,7 +146,7 @@ export default function ExpensesSection() {
         category: "seva",
       });
     }
-    
+
     setFormErrors({});
     setServerError("");
     setIsModalOpen(true);
@@ -166,17 +169,17 @@ export default function ExpensesSection() {
   const handleFormChange = useCallback((field: keyof ExpenseCreate, value: string | number) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
-      
+
       // Auto-calculate total amount when price or quantity changes
       if (field === "item_price" || field === "quantity") {
         const price = field === "item_price" ? Number(value) : newData.item_price;
         const quantity = field === "quantity" ? Number(value) : newData.quantity;
         newData.total_amount = price * quantity;
       }
-      
+
       return newData;
     });
-    
+
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: "" }));
     }
@@ -184,7 +187,7 @@ export default function ExpensesSection() {
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const errors = validateForm(formData);
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -366,11 +369,10 @@ export default function ExpensesSection() {
                       <TableCell>{item.quantity}</TableCell>
                       <TableCell className="font-semibold">{formatCurrency(item.total_amount)}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md capitalize ${
-                          item.category === "seva"
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md capitalize ${item.category === "seva"
                             ? "bg-blue-50 text-blue-700 border border-blue-200"
                             : "bg-purple-50 text-purple-700 border border-purple-200"
-                        }`}>
+                          }`}>
                           {item.category}
                         </span>
                       </TableCell>
@@ -436,7 +438,7 @@ export default function ExpensesSection() {
               {editingItem ? "Update the expense record details." : "Fill in the details for the new expense record."}
             </DialogDescription>
           </DialogHeader>
-          
+
           {serverError && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
               {serverError}
