@@ -238,17 +238,18 @@ export default function CallingSevaSection() {
     }
   }, [deletingItem, fetchCallingSevas]);
 
-  // const formatDate = useCallback((dateString: string) => {
-  //   return new Date(dateString).toLocaleDateString('en-US', {
-  //     year: 'numeric',
-  //     month: 'short',
-  //     day: 'numeric',
-  //   });
-  // }, []);
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN'); // Indian format DD/MM/YYYY
-  };
+  const formatDate = useCallback((dateString: string) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }, []);
+  // const formatDate = (dateString: string) => {
+  //   const date = new Date(dateString);
+  //   return date.toLocaleDateString('en-IN'); // Indian format DD/MM/YYYY
+  // };
 
   const formatMobileNumber = useCallback((mobile: string) => {
     // Format mobile number for display
