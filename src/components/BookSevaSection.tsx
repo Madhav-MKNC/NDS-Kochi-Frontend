@@ -41,8 +41,6 @@ export default function BookSevaSection() {
   // Form states
   const [formData, setFormData] = useState<BookSevaCreate>({
     date: new Date().toISOString().slice(0, 16),
-    state: "",
-    district: "",
     seva_place: "",
     sevadar_name: "",
     book_name: "" as BookName,
@@ -106,9 +104,7 @@ export default function BookSevaSection() {
       const matchesSearch = searchQuery === "" ||
         item.sevadar_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.book_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.seva_place.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.district.toLowerCase().includes(searchQuery.toLowerCase());
+        item.seva_place.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesFilter = bookTypeFilter === "all" || item.book_type === bookTypeFilter;
 
@@ -120,8 +116,6 @@ export default function BookSevaSection() {
     const errors: Record<string, string> = {};
 
     if (!data.date) errors.date = "Date is required";
-    if (!data.state.trim()) errors.state = "State is required";
-    if (!data.district.trim()) errors.district = "District is required";
     if (!data.seva_place.trim()) errors.seva_place = "Seva place is required";
     if (!data.sevadar_name.trim()) errors.sevadar_name = "Sevadar name is required";
     if (!data.book_name) errors.book_name = "Book name is required";
@@ -142,8 +136,6 @@ export default function BookSevaSection() {
 
       setFormData({
         date: dateValue,
-        state: item.state,
-        district: item.district,
         seva_place: item.seva_place,
         sevadar_name: item.sevadar_name,
         book_name: item.book_name,
@@ -155,8 +147,6 @@ export default function BookSevaSection() {
     } else {
       setFormData({
         date: new Date().toISOString().slice(0, 16),
-        state: "",
-        district: "",
         seva_place: "",
         sevadar_name: "",
         book_name: "" as BookName,
@@ -177,8 +167,6 @@ export default function BookSevaSection() {
     setEditingItem(null);
     setFormData({
       date: new Date().toISOString().slice(0, 16),
-      state: "",
-      district: "",
       seva_place: "",
       sevadar_name: "",
       book_name: "" as BookName,
@@ -258,13 +246,17 @@ export default function BookSevaSection() {
   }, [deletingItem, fetchBookSevas]);
 
   const formatDate = useCallback((dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
   }, []);
-
+  // const formatDate = (dateString: string) => {
+  // const date = new Date(dateString);
+  // return date.toLocaleDateString('en-IN'); // Indian format DD/MM/YYYY
+  // };
   if (loading) {
     return (
       <div className="space-y-6">
@@ -308,7 +300,7 @@ export default function BookSevaSection() {
         <div className="flex-1 max-w-md">
           <Input
             type="text"
-            placeholder="Search by sevadar, book name, place, state, or district..."
+            placeholder="Search by sevadar, book name, or seva place"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="bg-card"
@@ -351,8 +343,6 @@ export default function BookSevaSection() {
                 <TableHeader>
                   <TableRow className="border-b border-border bg-muted/30">
                     <TableHead className="font-medium text-muted-foreground">Date</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">State</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">District</TableHead>
                     <TableHead className="font-medium text-muted-foreground">Place</TableHead>
                     <TableHead className="font-medium text-muted-foreground">Sevadar</TableHead>
                     <TableHead className="font-medium text-muted-foreground">Book Name</TableHead>
@@ -367,8 +357,6 @@ export default function BookSevaSection() {
                   {filteredBookSevas.map((item) => (
                     <TableRow key={item.id} className="border-b border-border hover:bg-muted/20">
                       <TableCell className="font-medium">{formatDate(item.date)}</TableCell>
-                      <TableCell>{item.state}</TableCell>
-                      <TableCell>{item.district}</TableCell>
                       <TableCell>{item.seva_place}</TableCell>
                       <TableCell>{item.sevadar_name}</TableCell>
                       <TableCell className="capitalize">{item.book_name}</TableCell>
@@ -458,34 +446,17 @@ export default function BookSevaSection() {
                 <Label htmlFor="date">Date *</Label>
                 <Input
                   id="date"
-                  type="datetime-local"
-                  value={formData.date}
+                  type="date"
+                  value={formData.date} // keep as YYYY-MM-DD
                   onChange={(e) => handleFormChange("date", e.target.value)}
                   className={formErrors.date ? "border-destructive" : ""}
                 />
+                {formData.date && (
+                  <p className="text-sm text-muted-foreground">
+                    Selected Date: {formatDate(formData.date)}
+                  </p>
+                )}
                 {formErrors.date && <p className="text-sm text-destructive">{formErrors.date}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="state">State *</Label>
-                <Input
-                  id="state"
-                  value={formData.state}
-                  onChange={(e) => handleFormChange("state", e.target.value)}
-                  className={formErrors.state ? "border-destructive" : ""}
-                />
-                {formErrors.state && <p className="text-sm text-destructive">{formErrors.state}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="district">District *</Label>
-                <Input
-                  id="district"
-                  value={formData.district}
-                  onChange={(e) => handleFormChange("district", e.target.value)}
-                  className={formErrors.district ? "border-destructive" : ""}
-                />
-                {formErrors.district && <p className="text-sm text-destructive">{formErrors.district}</p>}
               </div>
 
               <div className="space-y-2">

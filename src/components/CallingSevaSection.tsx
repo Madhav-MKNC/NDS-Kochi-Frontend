@@ -238,13 +238,17 @@ export default function CallingSevaSection() {
     }
   }, [deletingItem, fetchCallingSevas]);
 
-  const formatDate = useCallback((dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }, []);
+  // const formatDate = useCallback((dateString: string) => {
+  //   return new Date(dateString).toLocaleDateString('en-US', {
+  //     year: 'numeric',
+  //     month: 'short',
+  //     day: 'numeric',
+  //   });
+  // }, []);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN'); // Indian format DD/MM/YYYY
+  };
 
   const formatMobileNumber = useCallback((mobile: string) => {
     // Format mobile number for display
@@ -439,11 +443,16 @@ export default function CallingSevaSection() {
                 <Label htmlFor="date">Date *</Label>
                 <Input
                   id="date"
-                  type="datetime-local"
-                  value={formData.date}
+                  type="date"
+                  value={formData.date.slice(0, 10)} // YYYY-MM-DD format
                   onChange={(e) => handleFormChange("date", e.target.value)}
                   className={formErrors.date ? "border-destructive" : ""}
                 />
+                {formData.date && (
+                  <p className="text-sm text-muted-foreground">
+                    Selected Date: {formatDate(formData.date)}
+                  </p>
+                )}
                 {formErrors.date && <p className="text-sm text-destructive">{formErrors.date}</p>}
               </div>
 

@@ -93,8 +93,6 @@ export interface User {
 // Book Seva interfaces
 export interface BookSevaBase {
   date: string;
-  state: string;
-  district: string;
   seva_place: string;
   sevadar_name: string;
   book_name: BookName;
