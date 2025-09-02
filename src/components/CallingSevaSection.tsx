@@ -11,8 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { callingSevaApi, type CallingSevaRead, type CallingSevaCreate, type CallingSevaUpdate } from "@/lib/api";
+import { exportToCSV } from "@/utils/exportToCSV";
+import { formatRecords } from "@/utils/formatRecords";
 
 import {
   BHAGAT_NAMES,
@@ -122,6 +124,11 @@ export default function CallingSevaSection() {
     await loadData();
   };
 
+  const handleExport = () => {
+    const { headers, rows } = formatRecords(filteredRecords);
+    exportToCSV(headers, rows, "calling-seva-records");
+  };
+
   // Reload data when page or records per page changes
   useEffect(() => {
     if (dataLoaded) {
@@ -221,7 +228,7 @@ export default function CallingSevaSection() {
           <CardDescription>Set filters before loading data</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="statusFilter">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -254,6 +261,10 @@ export default function CallingSevaSection() {
                   Load Data
                 </>
               )}
+            </Button>
+            <Button variant={"outline"} onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
             </Button>
           </div>
         </CardContent>

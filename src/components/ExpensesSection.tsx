@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, DollarSign, Edit, Trash2, TrendingUp, Search, ChevronLeft, ChevronRight, Filter, Loader2 } from "lucide-react";
+import { Plus, DollarSign, Edit, Trash2, TrendingUp, Search, ChevronLeft, ChevronRight, Filter, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   expensesApi,
@@ -21,6 +21,8 @@ import {
   ApiServiceError,
   apiUtils
 } from "@/lib/api";
+import { exportToCSV } from "@/utils/exportToCSV";
+import { formatRecords } from "@/utils/formatRecords";
 
 const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
   { value: "seva", label: "Seva" },
@@ -153,6 +155,11 @@ export default function ExpensesSection() {
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
+
+  const handleExport = () => {
+    const { headers, rows } = formatRecords(filteredExpenses);
+    exportToCSV(headers, rows, "expenses-nds-kochi");
+  };
 
   const handleRecordsPerPageChange = useCallback((value: string) => {
     setRecordsPerPage(parseInt(value));
@@ -333,7 +340,7 @@ export default function ExpensesSection() {
           <CardDescription>Set date range to load expense data</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="from_date">
                 From: {filters.from_date && (
@@ -387,6 +394,10 @@ export default function ExpensesSection() {
               ) : (
                 "Load Data"
               )}
+            </Button>
+            <Button variant={"outline"} onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
             </Button>
           </div>
         </CardContent>

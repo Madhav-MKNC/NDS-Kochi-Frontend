@@ -10,8 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
 import { bookSevaApi, type BookSevaRead, type BookSevaCreate, type BookSevaUpdate } from "@/lib/api";
+import { exportToCSV } from "@/utils/exportToCSV";
+import { formatRecords } from "@/utils/formatRecords";
 
 import {
   BOOK_NAMES,
@@ -60,6 +62,12 @@ export default function BookSevaSection() {
     coordinator_name: COORDINATOR_NAME,
     driver_name: DRIVER_NAME
   });
+
+  const handleExport = () => {
+    const { headers, rows } = formatRecords(filteredRecords);
+    exportToCSV(headers, rows, "book-seva-records");
+  };
+
 
   const validateFilters = () => {
     if (!fromDate || !toDate) {
@@ -242,7 +250,7 @@ export default function BookSevaSection() {
           <CardDescription>Set filters before loading data</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <Label htmlFor="fromDate">
                 From: {fromDate && (
@@ -299,6 +307,10 @@ export default function BookSevaSection() {
                   Load Data
                 </>
               )}
+            </Button>
+            <Button variant={"outline"} onClick={handleExport}>
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
             </Button>
           </div>
         </CardContent>
