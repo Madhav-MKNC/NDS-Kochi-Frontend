@@ -27,7 +27,7 @@ export default function CallingSevaSection() {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -47,7 +47,7 @@ export default function CallingSevaSection() {
     date: "",
     address: "",
     mobile_no: "",
-    status: "interested",
+    status: "other",
     assigned_bhagat_name: BHAGAT_NAMES[0],
     remarks: ""
   });
@@ -68,7 +68,7 @@ export default function CallingSevaSection() {
       const data = await callingSevaApi.getAll({
         skip: (currentPage - 1) * recordsPerPage,
         limit: recordsPerPage,
-        status: statusFilter
+        status: statusFilter === "all" ? undefined : statusFilter
       });
 
       setRecords(data);
@@ -162,7 +162,7 @@ export default function CallingSevaSection() {
       date: record.date ? new Date(record.date).toISOString().split('T')[0] : "",
       address: record.address || "",
       mobile_no: record.mobile_no || "",
-      status: record.status || "interested",
+      status: record.status || "other",
       assigned_bhagat_name: record.assigned_bhagat_name || BHAGAT_NAMES[0],
       remarks: record.remarks || ""
     });
@@ -189,7 +189,7 @@ export default function CallingSevaSection() {
       date: "",
       address: "",
       mobile_no: "",
-      status: "interested",
+      status: "other",
       assigned_bhagat_name: BHAGAT_NAMES[0],
       remarks: ""
     });
@@ -226,9 +226,10 @@ export default function CallingSevaSection() {
               <Label htmlFor="statusFilter">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
                   {STATUS_OPTIONS.map(status => (
                     <SelectItem key={status} value={status}>
                       {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -331,7 +332,7 @@ export default function CallingSevaSection() {
                         </TableCell>
                         <TableCell>{record.mobile_no}</TableCell>
                         <TableCell>
-                          <Badge variant={record.status === 'interested' ? 'default' : 'secondary'}>
+                          <Badge variant={"default"}>
                             {record.status}
                           </Badge>
                         </TableCell>

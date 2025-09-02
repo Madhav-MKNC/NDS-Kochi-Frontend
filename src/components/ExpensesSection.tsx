@@ -37,9 +37,14 @@ export default function ExpensesSection() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | string>("all");
 
   // Filter states
+  const today = new Date().toISOString().split("T")[0];
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const oneMonthAgoStr = oneMonthAgo.toISOString().split("T")[0];
+
   const [filters, setFilters] = useState({
-    from_date: "",
-    to_date: ""
+    from_date: oneMonthAgoStr,
+    to_date: today
   });
 
   // Pagination states

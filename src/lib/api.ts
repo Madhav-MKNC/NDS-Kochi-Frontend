@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 // Types & Interfaces (Based on Backend Documentation)
 // ============================================================================
 
+// The below constants will be fetched dynamically using api endpoint /general/constants
 export const BHAGAT_NAMES = ['santoshi das', 'chhaya das'] as const;
 export const STATUS_OPTIONS = ['interested', 'not interested', 'other'] as const;
 export const COORDINATOR_NAME = "Purushottam Kushwaha";

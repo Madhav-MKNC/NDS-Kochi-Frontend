@@ -28,8 +28,13 @@ export default function BookSevaSection() {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Filter states
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const today = new Date().toISOString().split("T")[0];
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  const oneMonthAgoStr = oneMonthAgo.toISOString().split("T")[0];
+
+  const [fromDate, setFromDate] = useState(oneMonthAgoStr);
+  const [toDate, setToDate] = useState(today);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
