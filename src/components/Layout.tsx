@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Menu, BookOpen, Phone, Receipt, BarChart3, LogOut, User, Sun, Moon } from "lucide-react";
 import { toast } from "sonner";
-import { authApi, type User as ApiUser, ApiServiceError, apiUtils } from "@/lib/api";
+import { authApi, fetchConstants, type User as ApiUser, ApiServiceError, apiUtils } from "@/lib/api";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,11 +33,14 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
   const fetchCurrentUser = useCallback(async () => {
     try {
       if (apiUtils.isAuthenticated()) {
-        const user = await authApi.getCurrentUser();
+        const [user] = await Promise.all([
+          authApi.getCurrentUser(),
+          fetchConstants()
+        ]);
         setCurrentUser(user);
       }
     } catch (error) {
-      console.error("Failed to fetch current user:", error);
+      console.error("Failed to fetch current user or constants:", error);
       if (error instanceof ApiServiceError && error.status === 401) {
         // User is not authenticated, this will be handled by the auth interceptor
         setCurrentUser(null);

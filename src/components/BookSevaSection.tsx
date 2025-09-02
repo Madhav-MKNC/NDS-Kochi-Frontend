@@ -19,7 +19,8 @@ import {
   BOOK_NAMES,
   BookName,
   COORDINATOR_NAME,
-  DRIVER_NAME
+  DRIVER_NAME,
+  fetchConstants
 } from "@/lib/api";
 
 export default function BookSevaSection() {
@@ -62,6 +63,11 @@ export default function BookSevaSection() {
     coordinator_name: COORDINATOR_NAME,
     driver_name: DRIVER_NAME
   });
+
+  // Fetch dynamic constants for coordinator and driver
+  useEffect(() => {
+    fetchConstants();
+  }, []);
 
   const handleExport = () => {
     const { headers, rows } = formatRecords(filteredRecords);

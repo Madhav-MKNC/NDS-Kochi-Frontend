@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
-import { callingSevaApi, type CallingSevaRead, type CallingSevaCreate, type CallingSevaUpdate } from "@/lib/api";
+import { callingSevaApi, fetchConstants, type CallingSevaRead, type CallingSevaCreate, type CallingSevaUpdate } from "@/lib/api";
 import { exportToCSV } from "@/utils/exportToCSV";
 import { formatRecords } from "@/utils/formatRecords";
 
@@ -49,10 +49,15 @@ export default function CallingSevaSection() {
     date: "",
     address: "",
     mobile_no: "",
-    status: "other",
+    status: STATUS_OPTIONS[0],
     assigned_bhagat_name: BHAGAT_NAMES[0],
     remarks: ""
   });
+
+  // Fetch dynamic constants
+  useEffect(() => {
+    fetchConstants();
+  }, []);
 
   const validateFilters = () => {
     if (!statusFilter) {

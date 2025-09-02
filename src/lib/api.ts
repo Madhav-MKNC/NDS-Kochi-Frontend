@@ -5,11 +5,11 @@ import { toast } from 'sonner';
 // Types & Interfaces (Based on Backend Documentation)
 // ============================================================================
 
-// The below constants will be fetched dynamically using api endpoint /general/constants
-export const BHAGAT_NAMES = ['santoshi das', 'chhaya das'] as const;
-export const STATUS_OPTIONS = ['interested', 'not interested', 'other'] as const;
-export const COORDINATOR_NAME = "Purushottam Kushwaha";
-export const DRIVER_NAME = "Vinod";
+// TODO: The below constants will be fetched dynamically using api endpoint /general/constants
+export let BHAGAT_NAMES: string[] = [];
+export let STATUS_OPTIONS: string[] = [];
+export let COORDINATOR_NAME = "";
+export let DRIVER_NAME = "";
 
 export const BOOK_NAMES = [
   'gyan ganga (hindi)',
@@ -32,6 +32,13 @@ export const BOOK_NAMES = [
   'jine ki raah (nepali)',
 ] as const;
 export type BookName = typeof BOOK_NAMES[number];
+
+export interface ConstantsResponse {
+  coordinator_name: string;
+  driver_name: string;
+  status: string[];
+  assigned_bhagat: string[];
+}
 
 // Base interfaces
 export interface ApiResponse<T = any> {
@@ -718,6 +725,16 @@ export const apiUtils = {
 // ============================================================================
 // Export Default API Service
 // ============================================================================
+
+
+export async function fetchConstants(): Promise<ConstantsResponse> {
+  const constants = await apiClient.get<ConstantsResponse>('/general/constants');
+  BHAGAT_NAMES = constants.assigned_bhagat;
+  STATUS_OPTIONS = constants.status;
+  COORDINATOR_NAME = constants.coordinator_name;
+  DRIVER_NAME = constants.driver_name;
+  return constants;
+}
 
 export default {
   auth: authApi,
