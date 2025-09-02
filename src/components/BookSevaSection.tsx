@@ -239,8 +239,8 @@ export default function BookSevaSection() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
-              <Label htmlFor="fromDate">From:
-                {fromDate && (
+              <Label htmlFor="fromDate">
+                From: {fromDate && (
                   <p className="text-sm text-muted-foreground">
                     {new Date(fromDate).toLocaleDateString("en-IN", {
                       day: "2-digit",
@@ -248,7 +248,8 @@ export default function BookSevaSection() {
                       year: "numeric"
                     })}
                   </p>
-                )}</Label>
+                )}
+              </Label>
               <Input
                 id="fromDate"
                 type="date"
@@ -258,8 +259,8 @@ export default function BookSevaSection() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="toDate">To:
-                {toDate && (
+              <Label htmlFor="toDate">
+                To: {toDate && (
                   <p className="text-sm text-muted-foreground">
                     {new Date(toDate).toLocaleDateString("en-IN", {
                       day: "2-digit",
@@ -267,7 +268,8 @@ export default function BookSevaSection() {
                       year: "numeric"
                     })}
                   </p>
-                )}</Label>
+                )}
+              </Label>
               <Input
                 id="toDate"
                 type="date"

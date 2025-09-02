@@ -331,8 +331,7 @@ export default function ExpensesSection() {
           <div className="flex items-end gap-4">
             <div className="space-y-2">
               <Label htmlFor="from_date">
-                From:
-                {filters.from_date && (
+                From: {filters.from_date && (
                   <p className="text-sm text-muted-foreground">
                     {new Date(filters.from_date).toLocaleDateString("en-IN", {
                       day: "2-digit",
@@ -351,8 +350,8 @@ export default function ExpensesSection() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="to_date">To:
-                {filters.to_date && (
+              <Label htmlFor="to_date">
+                To: {filters.to_date && (
                   <p className="text-sm text-muted-foreground">
                     {new Date(filters.to_date).toLocaleDateString("en-IN", {
                       day: "2-digit",
@@ -360,7 +359,8 @@ export default function ExpensesSection() {
                       year: "numeric"
                     })}
                   </p>
-                )}</Label>
+                )}
+              </Label>
               <Input
                 id="to_date"
                 type="date"
