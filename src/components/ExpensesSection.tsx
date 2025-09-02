@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Receipt, DollarSign, Edit, Trash2, TrendingUp } from "lucide-react";
+import { Plus, DollarSign, Edit, Trash2, TrendingUp, Search, ChevronLeft, ChevronRight, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   expensesApi,
@@ -18,23 +17,35 @@ import {
   type ExpenseRead,
   type ExpenseCreate,
   type ExpenseUpdate,
-  type ExpenseCategory,
   type User,
   ApiServiceError,
   apiUtils
 } from "@/lib/api";
 
-const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
+const EXPENSE_CATEGORIES: { value: string; label: string }[] = [
   { value: "seva", label: "Seva" },
   { value: "naamdaan", label: "Naamdaan" }
 ];
 
 export default function ExpensesSection() {
   const [expenses, setExpenses] = useState<ExpenseRead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [filteredExpenses, setFilteredExpenses] = useState<ExpenseRead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | ExpenseCategory>("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | string>("all");
+
+  // Filter states
+  const [filters, setFilters] = useState({
+    from_date: "",
+    to_date: ""
+  });
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [recordsPerPage, setRecordsPerPage] = useState(20);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,6 +54,7 @@ export default function ExpensesSection() {
 
   // Form states
   const [formData, setFormData] = useState<ExpenseCreate>({
+    date: "",
     item_name: "",
     item_price: 0,
     quantity: 1,
@@ -56,23 +68,48 @@ export default function ExpensesSection() {
   const [deletingItem, setDeletingItem] = useState<ExpenseRead | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchCurrentUser = useCallback(async () => {
-    try {
-      const user = await authApi.getCurrentUser();
-      setCurrentUser(user);
-    } catch (error) {
-      console.error("Failed to fetch current user:", error);
-      if (error instanceof ApiServiceError && error.status === 401) {
-        return;
-      }
+  const validateFilters = useCallback(() => {
+    if (!filters.from_date || !filters.to_date) {
+      toast.error("Please select both From Date and To Date to load data");
+      return false;
     }
-  }, []);
 
-  const fetchExpenses = useCallback(async () => {
+    if (new Date(filters.from_date) > new Date(filters.to_date)) {
+      toast.error("From Date cannot be later than To Date");
+      return false;
+    }
+
+    return true;
+  }, [filters]);
+
+  const loadData = useCallback(async (page: number = 1) => {
+    if (!validateFilters()) return;
+
     try {
       setLoading(true);
-      const data = await expensesApi.getAll();
+      const skip = (page - 1) * recordsPerPage;
+
+      const data = await expensesApi.getAll({
+        skip,
+        limit: recordsPerPage,
+        from_date: filters.from_date,
+        to_date: filters.to_date
+      });
+
       setExpenses(Array.isArray(data) ? data : []);
+      setFilteredExpenses(Array.isArray(data) ? data : []);
+      setDataLoaded(true);
+      setCurrentPage(page);
+
+      // Calculate total pages (approximate since we don't get total count from API)
+      if (data.length < recordsPerPage) {
+        setTotalPages(currentPage);
+      } else {
+        setTotalPages(currentPage + 1); // We don't know exact total, so we show next page option
+      }
+
+      toast.success(`Loaded ${data.length} expense records`);
+
     } catch (error) {
       console.error("Failed to fetch expenses:", error);
       if (error instanceof ApiServiceError) {
@@ -83,36 +120,47 @@ export default function ExpensesSection() {
         toast.error("Failed to load expenses");
       }
       setExpenses([]);
+      setFilteredExpenses([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters, recordsPerPage, validateFilters, currentPage]);
 
   useEffect(() => {
-    if (apiUtils.isAuthenticated()) {
-      // fetchCurrentUser();
-      fetchExpenses();
+    if (dataLoaded) {
+      const filtered = expenses.filter((item) => {
+        const matchesSearch = searchQuery === "" ||
+          item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.category.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const matchesFilter = categoryFilter === "all" || item.category === categoryFilter;
+
+        return matchesSearch && matchesFilter;
+      });
+      setFilteredExpenses(filtered);
     }
-  }, [
-    // fetchCurrentUser, 
-    fetchExpenses
-  ]);
-
-  const filteredExpenses = useMemo(() => {
-    return expenses.filter((item) => {
-      const matchesSearch = searchQuery === "" ||
-        item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesFilter = categoryFilter === "all" || item.category === categoryFilter;
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [expenses, searchQuery, categoryFilter]);
+  }, [expenses, searchQuery, categoryFilter, dataLoaded]);
 
   const totalExpenses = useMemo(() => {
     return filteredExpenses.reduce((sum, expense) => sum + expense.total_amount, 0);
   }, [filteredExpenses]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handleRecordsPerPageChange = useCallback((value: string) => {
+    setRecordsPerPage(parseInt(value));
+    setCurrentPage(1); // Reset to first page when changing page size
+  }, []);
+
+  // Reload data when page or records per page changes
+  useEffect(() => {
+    if (dataLoaded) {
+      loadData(currentPage);
+    }
+  }, [currentPage, recordsPerPage, loadData, dataLoaded]);
+
 
   const validateForm = useCallback((data: ExpenseCreate): Record<string, string> => {
     const errors: Record<string, string> = {};
@@ -131,6 +179,7 @@ export default function ExpensesSection() {
 
     if (item) {
       setFormData({
+        date: item.date ? new Date(item.date).toISOString().split('T')[0] : "",
         item_name: item.item_name,
         item_price: item.item_price,
         quantity: item.quantity,
@@ -139,6 +188,7 @@ export default function ExpensesSection() {
       });
     } else {
       setFormData({
+        date: "",
         item_name: "",
         item_price: 0,
         quantity: 1,
@@ -156,6 +206,7 @@ export default function ExpensesSection() {
     setIsModalOpen(false);
     setEditingItem(null);
     setFormData({
+      date: "",
       item_name: "",
       item_price: 0,
       quantity: 1,
@@ -185,7 +236,7 @@ export default function ExpensesSection() {
     }
   }, [formErrors]);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
 
     const errors = validateForm(formData);
@@ -208,7 +259,10 @@ export default function ExpensesSection() {
       }
 
       closeModal();
-      fetchExpenses();
+      // Reload current page to show changes
+      if (dataLoaded) {
+        loadData(currentPage);
+      }
     } catch (error) {
       if (error instanceof ApiServiceError) {
         setServerError(apiUtils.formatError(error));
@@ -218,7 +272,7 @@ export default function ExpensesSection() {
     } finally {
       setModalLoading(false);
     }
-  }, [formData, editingItem, validateForm, closeModal, fetchExpenses]);
+  }, [formData, editingItem, validateForm, closeModal, loadData, currentPage, dataLoaded]);
 
   const handleDelete = useCallback(async () => {
     if (!deletingItem) return;
@@ -227,7 +281,10 @@ export default function ExpensesSection() {
     try {
       await expensesApi.delete(deletingItem.id);
       setDeletingItem(null);
-      fetchExpenses();
+      toast.success("Expense deleted successfully");
+      if (dataLoaded) {
+        loadData(currentPage);
+      }
     } catch (error) {
       if (error instanceof ApiServiceError) {
         toast.error("Failed to delete expense: " + error.message);
@@ -237,7 +294,7 @@ export default function ExpensesSection() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [deletingItem, fetchExpenses]);
+  }, [deletingItem, loadData, currentPage, dataLoaded]);
 
   const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -246,30 +303,6 @@ export default function ExpensesSection() {
       minimumFractionDigits: 2,
     }).format(amount);
   }, []);
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Card>
-          <CardContent className="p-0">
-            <div className="space-y-3 p-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -280,151 +313,321 @@ export default function ExpensesSection() {
           <p className="text-muted-foreground">Track and manage expense records</p>
         </div>
         <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
-          <Receipt className="h-4 w-4 mr-2" />
+          <Plus className="w-4 h-4 mr-2" />
           Add New
         </Button>
       </div>
 
-      {/* Summary Card */}
-      {filteredExpenses.length > 0 && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Expenses</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(totalExpenses)}</p>
-                <p className="text-sm text-muted-foreground">{filteredExpenses.length} items</p>
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filters
+          </CardTitle>
+          <CardDescription>Set date range to load expense data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="from_date">
+                From:
+                {filters.from_date && (
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(filters.from_date).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </p>
+                )}
+              </Label>
+              <Input
+                id="from_date"
+                type="date"
+                value={filters.from_date}
+                onChange={(e) => setFilters(prev => ({ ...prev, from_date: e.target.value }))}
+                className="w-48"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to_date">To:
+                {filters.to_date && (
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(filters.to_date).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </p>
+                )}</Label>
+              <Input
+                id="to_date"
+                type="date"
+                value={filters.to_date}
+                onChange={(e) => setFilters(prev => ({ ...prev, to_date: e.target.value }))}
+                className="w-48"
+              />
+            </div>
+            <Button
+              onClick={() => loadData(1)}
+              disabled={loading}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Load Data"
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Show content only after data is loaded */}
+      {dataLoaded && (
+        <>
+          {/* Summary Card */}
+          {filteredExpenses.length > 0 && (
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                    <TrendingUp className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Expenses</p>
+                    <p className="text-2xl font-bold text-foreground">{formatCurrency(totalExpenses)}</p>
+                    <p className="text-sm text-muted-foreground">{filteredExpenses.length} items</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Search and Category Filter */}
+          <div className="flex items-center gap-4">
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search by item name or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-card pl-10"
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <Select value={categoryFilter} onValueChange={(value: "all" | string) => setCategoryFilter(value)}>
+              <SelectTrigger className="w-40 bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {EXPENSE_CATEGORIES.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>
+                    {category.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 max-w-md">
-          <Input
-            type="text"
-            placeholder="Search by item name or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-card"
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={(value: "all" | ExpenseCategory) => setCategoryFilter(value)}>
-          <SelectTrigger className="w-40 bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {EXPENSE_CATEGORIES.map((category) => (
-              <SelectItem key={category.value} value={category.value}>
-                {category.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          {/* Table */}
+          {filteredExpenses.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <DollarSign className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <CardTitle className="mb-2">No expenses found</CardTitle>
+                <CardDescription className="mb-4">
+                  No records match your search criteria for the selected date range.
+                </CardDescription>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Expense Records</CardTitle>
+                    <CardDescription>
+                      Showing {filteredExpenses.length} records
+                    </CardDescription>
+                  </div>
 
-      {/* Table */}
-      {filteredExpenses.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <DollarSign className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle className="mb-2">No expenses found</CardTitle>
-            <CardDescription className="mb-4">
-              {expenses.length === 0 ? "Get started by adding your first expense record." : "No records match your search criteria."}
-            </CardDescription>
-            {expenses.length === 0 && (
-              <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
-                <Receipt className="h-4 w-4 mr-2" />
-                Add First Expense
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border bg-muted/30">
-                    <TableHead className="font-medium text-muted-foreground">Item Name</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Price</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Quantity</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Total Amount</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Category</TableHead>
-                    <TableHead className="font-medium text-muted-foreground w-24">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredExpenses.map((item) => (
-                    <TableRow key={item.id} className="border-b border-border hover:bg-muted/20">
-                      <TableCell className="font-medium">{item.item_name}</TableCell>
-                      <TableCell>{formatCurrency(item.item_price)}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell className="font-semibold">{formatCurrency(item.total_amount)}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md capitalize ${item.category === "seva"
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
-                            : "bg-purple-50 text-purple-700 border border-purple-200"
-                          }`}>
-                          {item.category}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openModal(item)}
-                            aria-label={`Edit ${item.item_name} expense`}
-                            className="h-8 w-8 p-0 hover:bg-muted"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
+                  {/* Records per page selector */}
+                  <div className="flex items-center space-x-2">
+                    <Label>Records per page:</Label>
+                    <Select value={recordsPerPage.toString()} onValueChange={handleRecordsPerPageChange}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-border bg-muted/30">
+                        <TableHead className="font-medium text-muted-foreground">Date</TableHead>
+                        <TableHead className="font-medium text-muted-foreground">Item Name</TableHead>
+                        <TableHead className="font-medium text-muted-foreground">Price</TableHead>
+                        <TableHead className="font-medium text-muted-foreground">Quantity</TableHead>
+                        <TableHead className="font-medium text-muted-foreground">Total Amount</TableHead>
+                        <TableHead className="font-medium text-muted-foreground">Category</TableHead>
+                        <TableHead className="font-medium text-muted-foreground w-24">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredExpenses.map((item) => (
+                        <TableRow key={item.id} className="border-b border-border hover:bg-muted/20">
+                          <TableCell>
+                            {/* {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'} */}
+                            {item.date ? new Date(item.date).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric"
+                            }) : 'N/A'}
+                          </TableCell>
+                          <TableCell className="font-medium">{item.item_name}</TableCell>
+                          <TableCell>{formatCurrency(item.item_price)}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell className="font-semibold">{formatCurrency(item.total_amount)}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md capitalize ${item.category === "seva"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : "bg-purple-50 text-purple-700 border border-purple-200"
+                              }`}>
+                              {item.category}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setDeletingItem(item)}
-                                aria-label={`Delete ${item.item_name} expense`}
-                                className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => openModal(item)}
+                                aria-label={`Edit ${item.item_name} expense`}
+                                className="h-8 w-8 p-0 hover:bg-muted"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Expense Record</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete the expense record for <strong>{item.item_name}</strong> worth <strong>{formatCurrency(item.total_amount)}</strong>? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={handleDelete}
-                                  disabled={deleteLoading}
-                                  className="bg-destructive hover:bg-destructive/90"
-                                >
-                                  {deleteLoading ? "Deleting..." : "Delete"}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setDeletingItem(item)}
+                                    aria-label={`Delete ${item.item_name} expense`}
+                                    className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Expense Record</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete the expense record for <strong>{item.item_name}</strong> worth <strong>{formatCurrency(item.total_amount)}</strong>? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={handleDelete}
+                                      disabled={deleteLoading}
+                                      className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                      {deleteLoading ? "Deleting..." : "Delete"}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Pagination */}
+                {expenses.length > 0 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages || 1}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+
+                      {/* Page numbers */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center space-x-1">
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            const pageNum = Math.max(1, currentPage - 2) + i;
+                            if (pageNum > totalPages) return null;
+
+                            return (
+                              <Button
+                                key={pageNum}
+                                variant={pageNum === currentPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => handlePageChange(pageNum)}
+                                className="w-8 h-8 p-0"
+                              >
+                                {pageNum}
+                              </Button>
+                            );
+                          })}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={expenses.length < recordsPerPage}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* No Data Loaded State */}
+      {!dataLoaded && !loading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle className="mb-2">Load Data</CardTitle>
+            <CardDescription>
+              Please select a date range and click "Load Data" to view expense records.
+            </CardDescription>
           </CardContent>
         </Card>
       )}
@@ -447,7 +650,29 @@ export default function ExpensesSection() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
+                <Label htmlFor="date">Date *</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => handleFormChange("date", e.target.value)}
+                  className={formErrors.date ? "border-destructive" : ""}
+                  required
+                />
+                {formData.date && (
+                  <p className="text-sm text-muted-foreground">
+                    Selected Date: {new Date(formData.date).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </p>
+                )}
+                {formErrors.date && <p className="text-sm text-destructive">{formErrors.date}</p>}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="item_name">Item Name *</Label>
                 <Input
                   id="item_name"
@@ -508,7 +733,7 @@ export default function ExpensesSection() {
 
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select value={formData.category} onValueChange={(value: ExpenseCategory) => handleFormChange("category", value)}>
+                <Select value={formData.category} onValueChange={(value: string) => handleFormChange("category", value)}>
                   <SelectTrigger className={formErrors.category ? "border-destructive" : ""}>
                     <SelectValue />
                   </SelectTrigger>

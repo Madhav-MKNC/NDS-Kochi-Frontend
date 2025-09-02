@@ -1,444 +1,487 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, FormEvent } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, BookText, ChevronUp, Edit, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { bookSevaApi, type BookSevaRead, type BookSevaCreate, type BookSevaUpdate } from "@/lib/api";
+
 import {
-  bookSevaApi,
-  authApi,
-  type BookSevaRead,
-  type BookSevaCreate,
-  type BookSevaUpdate,
-  type BookName,
-  type BookType,
-  type User,
   BOOK_NAMES,
-  ApiServiceError,
-  apiUtils
+  BookName,
+  COORDINATOR_NAME,
+  DRIVER_NAME
 } from "@/lib/api";
 
 export default function BookSevaSection() {
-  const [bookSevas, setBookSevas] = useState<BookSevaRead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [bookTypeFilter, setBookTypeFilter] = useState<"all" | BookType>("all");
+  // Data and loading states
+  const [records, setRecords] = useState<BookSevaRead[]>([]);
+  const [filteredRecords, setFilteredRecords] = useState<BookSevaRead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<BookSevaRead | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
+  // Filter states
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [recordsPerPage, setRecordsPerPage] = useState(20);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Form states
-  const [formData, setFormData] = useState<BookSevaCreate>({
-    date: new Date().toISOString().slice(0, 16),
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<BookSevaRead | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+
+  // Form data
+  const [formData, setFormData] = useState<Partial<BookSevaCreate>>({
+    date: "",
     seva_place: "",
     sevadar_name: "",
-    book_name: "" as BookName,
+    book_name: BOOK_NAMES[0],
     book_type: "free",
     quantity: 1,
-    coordinator_name: "",
-    driver_name: "",
+    coordinator_name: COORDINATOR_NAME,
+    driver_name: DRIVER_NAME
   });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [serverError, setServerError] = useState("");
 
-  // Delete states
-  const [deletingItem, setDeletingItem] = useState<BookSevaRead | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const fetchCurrentUser = useCallback(async () => {
-    try {
-      const user = await authApi.getCurrentUser();
-      setCurrentUser(user);
-    } catch (error) {
-      console.error("Failed to fetch current user:", error);
-      if (error instanceof ApiServiceError && error.status === 401) {
-        // User is not authenticated, this will be handled by the auth interceptor
-        return;
-      }
+  const validateFilters = () => {
+    if (!fromDate || !toDate) {
+      toast.error("Please select both From Date and To Date before loading data");
+      return false;
     }
-  }, []);
+    if (new Date(fromDate) > new Date(toDate)) {
+      toast.error("From Date cannot be later than To Date");
+      return false;
+    }
+    return true;
+  };
 
-  const fetchBookSevas = useCallback(async () => {
+  const loadData = async () => {
+    if (!validateFilters()) return;
+
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await bookSevaApi.getAll();
-      setBookSevas(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to fetch book sevas:", error);
-      if (error instanceof ApiServiceError) {
-        if (error.status !== 401) { // Don't show error for auth issues
-          toast.error("Failed to load book sevas: " + error.message);
-        }
+      const data = await bookSevaApi.getAll({
+        skip: (currentPage - 1) * recordsPerPage,
+        limit: recordsPerPage,
+        from_date: fromDate,
+        to_date: toDate
+      });
+
+      setRecords(data);
+      setFilteredRecords(data);
+      setDataLoaded(true);
+
+      // Calculate total pages (approximate since we don't get total count from API)
+      if (data.length < recordsPerPage) {
+        setTotalPages(currentPage);
       } else {
-        toast.error("Failed to load book sevas");
+        setTotalPages(currentPage + 1); // We don't know exact total, so we show next page option
       }
-      setBookSevas([]);
+
+      toast.success(`Loaded ${data.length} book seva records`);
+    } catch (error) {
+      toast.error("Failed to load book seva records");
+      console.error("Error loading data:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    if (apiUtils.isAuthenticated()) {
-      // fetchCurrentUser();
-      fetchBookSevas();
-    }
-  }, [
-    // fetchCurrentUser,
-    fetchBookSevas
-  ]);
-
-  const filteredBookSevas = useMemo(() => {
-    return bookSevas.filter((item) => {
-      const matchesSearch = searchQuery === "" ||
-        item.sevadar_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.book_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.seva_place.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesFilter = bookTypeFilter === "all" || item.book_type === bookTypeFilter;
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [bookSevas, searchQuery, bookTypeFilter]);
-
-  const validateForm = useCallback((data: BookSevaCreate): Record<string, string> => {
-    const errors: Record<string, string> = {};
-
-    if (!data.date) errors.date = "Date is required";
-    if (!data.seva_place.trim()) errors.seva_place = "Seva place is required";
-    if (!data.sevadar_name.trim()) errors.sevadar_name = "Sevadar name is required";
-    if (!data.book_name) errors.book_name = "Book name is required";
-    if (!data.book_type) errors.book_type = "Book type is required";
-    if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
-    if (!data.coordinator_name.trim()) errors.coordinator_name = "Coordinator name is required";
-    if (!data.driver_name.trim()) errors.driver_name = "Driver name is required";
-
-    return errors;
-  }, []);
-
-  const openModal = useCallback((item?: BookSevaRead) => {
-    setEditingItem(item || null);
-
-    if (item) {
-      // Convert ISO string to datetime-local format
-      const dateValue = item.date ? new Date(item.date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16);
-
-      setFormData({
-        date: dateValue,
-        seva_place: item.seva_place,
-        sevadar_name: item.sevadar_name,
-        book_name: item.book_name,
-        book_type: item.book_type,
-        quantity: item.quantity,
-        coordinator_name: item.coordinator_name,
-        driver_name: item.driver_name,
-      });
-    } else {
-      setFormData({
-        date: new Date().toISOString().slice(0, 16),
-        seva_place: "",
-        sevadar_name: "",
-        book_name: "" as BookName,
-        book_type: "free",
-        quantity: 1,
-        coordinator_name: currentUser?.name || "",
-        driver_name: "",
-      });
-    }
-
-    setFormErrors({});
-    setServerError("");
-    setIsModalOpen(true);
-  }, [currentUser]);
-
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setEditingItem(null);
-    setFormData({
-      date: new Date().toISOString().slice(0, 16),
-      seva_place: "",
-      sevadar_name: "",
-      book_name: "" as BookName,
-      book_type: "free",
-      quantity: 1,
-      coordinator_name: currentUser?.name || "",
-      driver_name: "",
-    });
-    setFormErrors({});
-    setServerError("");
-  }, [currentUser]);
-
-  const handleFormChange = useCallback((field: keyof BookSevaCreate, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: "" }));
-    }
-  }, [formErrors]);
-
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const errors = validateForm(formData);
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    if (!term.trim()) {
+      setFilteredRecords(records);
       return;
     }
 
-    setModalLoading(true);
-    setServerError("");
-
-    try {
-      const payload: BookSevaCreate = {
-        ...formData,
-        date: new Date(formData.date).toISOString(),
-      };
-
-      if (editingItem) {
-        const updatePayload: BookSevaUpdate = payload;
-        await bookSevaApi.update(editingItem.id, updatePayload);
-        toast.success("Book seva updated successfully");
-      } else {
-        await bookSevaApi.create(payload);
-        toast.success("Book seva created successfully");
-      }
-
-      closeModal();
-      fetchBookSevas();
-    } catch (error) {
-      if (error instanceof ApiServiceError) {
-        setServerError(apiUtils.formatError(error));
-      } else {
-        setServerError("An unexpected error occurred");
-      }
-    } finally {
-      setModalLoading(false);
-    }
-  }, [formData, editingItem, validateForm, closeModal, fetchBookSevas]);
-
-  const handleDelete = useCallback(async () => {
-    if (!deletingItem) return;
-
-    setDeleteLoading(true);
-    try {
-      await bookSevaApi.delete(deletingItem.id);
-      setDeletingItem(null);
-      fetchBookSevas();
-    } catch (error) {
-      if (error instanceof ApiServiceError) {
-        toast.error("Failed to delete book seva: " + error.message);
-      } else {
-        toast.error("Failed to delete book seva");
-      }
-    } finally {
-      setDeleteLoading(false);
-    }
-  }, [deletingItem, fetchBookSevas]);
-
-  const formatDate = useCallback((dateString: string) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  }, []);
-  // const formatDate = (dateString: string) => {
-  // const date = new Date(dateString);
-  // return date.toLocaleDateString('en-IN'); // Indian format DD/MM/YYYY
-  // };
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Card>
-          <CardContent className="p-0">
-            <div className="space-y-3 p-6">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+    const filtered = records.filter(record =>
+      record.seva_place?.toLowerCase().includes(term.toLowerCase()) ||
+      record.sevadar_name?.toLowerCase().includes(term.toLowerCase()) ||
+      record.book_name?.toLowerCase().includes(term.toLowerCase()) ||
+      record.coordinator_name?.toLowerCase().includes(term.toLowerCase()) ||
+      record.driver_name?.toLowerCase().includes(term.toLowerCase())
     );
-  }
+    setFilteredRecords(filtered);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Note: We need to reload data when page changes
+    // This will be handled automatically when the page state changes and we call loadData
+  };
+
+  const handleRecordsPerPageChange = (value: string) => {
+    setRecordsPerPage(parseInt(value));
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  // Load data when pagination changes
+  const reloadWithPagination = async () => {
+    if (!dataLoaded || !validateFilters()) return;
+    await loadData();
+  };
+
+  // Reload data when page or records per page changes
+  useEffect(() => {
+    if (dataLoaded) {
+      reloadWithPagination();
+    }
+  }, [currentPage, recordsPerPage]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+
+    try {
+      if (editingRecord) {
+        await bookSevaApi.update(editingRecord.id, formData as BookSevaUpdate);
+        toast.success("Book seva record updated successfully");
+      } else {
+        await bookSevaApi.create(formData as BookSevaCreate);
+        toast.success("Book seva record created successfully");
+      }
+
+      setShowAddDialog(false);
+      setEditingRecord(null);
+      resetForm();
+      if (dataLoaded) {
+        await loadData(); // Reload data after successful operation
+      }
+    } catch (error) {
+      toast.error(`Failed to ${editingRecord ? 'update' : 'create'} book seva record`);
+      setFormLoading(false); // immediate reset here
+    } finally {
+      setFormLoading(false); // fallback reset
+    }
+  };
+
+  const handleEdit = (record: BookSevaRead) => {
+    setEditingRecord(record);
+    setFormData({
+      date: record.date ? new Date(record.date).toISOString().split('T')[0] : "",
+      seva_place: record.seva_place || "",
+      sevadar_name: record.sevadar_name || "",
+      book_name: record.book_name || BOOK_NAMES[0],
+      book_type: record.book_type || "free",
+      quantity: record.quantity || 1,
+      coordinator_name: record.coordinator_name || COORDINATOR_NAME,
+      driver_name: record.driver_name || DRIVER_NAME
+    });
+    setShowAddDialog(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this record?")) return;
+
+    try {
+      await bookSevaApi.delete(id);
+      toast.success("Book seva record deleted successfully");
+      if (dataLoaded) {
+        await loadData(); // Reload data after successful deletion
+      }
+    } catch (error) {
+      toast.error("Failed to delete book seva record");
+      console.error("Error deleting record:", error);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      date: "",
+      seva_place: "",
+      sevadar_name: "",
+      book_name: BOOK_NAMES[0],
+      book_type: "free",
+      quantity: 1,
+      coordinator_name: COORDINATOR_NAME,
+      driver_name: DRIVER_NAME
+    });
+  };
+
+  const openAddDialog = () => {
+    setEditingRecord(null);
+    resetForm();
+    setShowAddDialog(true);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-foreground">Book Seva</h1>
+          <h1 className="text-3xl font-bold text-foreground">Book Seva</h1>
           <p className="text-muted-foreground">Manage book distribution records</p>
         </div>
-        <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
-          <BookOpen className="h-4 w-4 mr-2" />
-          Add New
+        <Button onClick={openAddDialog} className="bg-primary hover:bg-primary/90">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Book Seva
         </Button>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 max-w-md">
-          <Input
-            type="text"
-            placeholder="Search by sevadar, book name, or seva place"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-card"
-          />
-        </div>
-        <Select value={bookTypeFilter} onValueChange={(value: "all" | BookType) => setBookTypeFilter(value)}>
-          <SelectTrigger className="w-32 bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="free">Free</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Filters Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Set filters before loading data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="fromDate">From:
+                {fromDate && (
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(fromDate).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </p>
+                )}</Label>
+              <Input
+                id="fromDate"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="toDate">To:
+                {toDate && (
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(toDate).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </p>
+                )}</Label>
+              <Input
+                id="toDate"
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Button
+              onClick={loadData}
+              disabled={loading}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Load Data
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Table */}
-      {filteredBookSevas.length === 0 ? (
+      {/* Search and Data Section - Only show after data is loaded */}
+      {dataLoaded && (
+        <>
+          {/* Search Bar */}
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search book seva records..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Records Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Book Seva Records</CardTitle>
+                  <CardDescription>
+                    Showing {filteredRecords.length} records
+                  </CardDescription>
+                </div>
+
+                {/* Records per page selector */}
+                <div className="flex items-center space-x-2">
+                  <Label>Records per page:</Label>
+                  <Select value={recordsPerPage.toString()} onValueChange={handleRecordsPerPageChange}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Sevadar</TableHead>
+                      <TableHead>Book</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Driver</TableHead>
+                      <TableHead>Coordinator</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRecords.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          {/* {record.date ? new Date(record.date).toLocaleDateString() : 'N/A'} */}
+                          {record.date ? new Date(record.date).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric"
+                          }) : 'N/A'}
+                        </TableCell>
+                        <TableCell>{record.seva_place}</TableCell>
+                        <TableCell>{record.sevadar_name}</TableCell>
+                        <TableCell>{record.book_name}</TableCell>
+                        <TableCell>
+                          {record.quantity}
+                          <Badge variant={record.book_type === 'paid' ? 'default' : 'secondary'} className="ml-4">
+                            {record.book_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{record.driver_name}</TableCell>
+                        <TableCell>{record.coordinator_name}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(record)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(record.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {records.length > 0 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages || 1}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+
+                    {/* Page numbers */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          const pageNum = Math.max(1, currentPage - 2) + i;
+                          if (pageNum > totalPages) return null;
+
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={pageNum === currentPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(pageNum)}
+                              className="w-8 h-8 p-0"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={records.length < recordsPerPage}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* No Data Loaded State */}
+      {!dataLoaded && !loading && (
         <Card>
           <CardContent className="text-center py-12">
-            <BookText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle className="mb-2">No book sevas found</CardTitle>
-            <CardDescription className="mb-4">
-              {bookSevas.length === 0 ? "Get started by adding your first book seva record." : "No records match your search criteria."}
+            <Filter className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <CardTitle className="mb-2">Load Data</CardTitle>
+            <CardDescription>
+              Please select a date range and click "Load Data" to view book-seva records.
             </CardDescription>
-            {bookSevas.length === 0 && (
-              <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Add First Book Seva
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border bg-muted/30">
-                    <TableHead className="font-medium text-muted-foreground">Date</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Place</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Sevadar</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Book Name</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Type</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Qty</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Coordinator</TableHead>
-                    <TableHead className="font-medium text-muted-foreground">Driver</TableHead>
-                    <TableHead className="font-medium text-muted-foreground w-24">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBookSevas.map((item) => (
-                    <TableRow key={item.id} className="border-b border-border hover:bg-muted/20">
-                      <TableCell className="font-medium">{formatDate(item.date)}</TableCell>
-                      <TableCell>{item.seva_place}</TableCell>
-                      <TableCell>{item.sevadar_name}</TableCell>
-                      <TableCell className="capitalize">{item.book_name}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-md ${item.book_type === "free"
-                          ? "bg-green-50 text-green-700 border border-green-200"
-                          : "bg-blue-50 text-blue-700 border border-blue-200"
-                          }`}>
-                          {item.book_type}
-                        </span>
-                      </TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>{item.coordinator_name}</TableCell>
-                      <TableCell>{item.driver_name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openModal(item)}
-                            aria-label={`Edit ${item.sevadar_name} record`}
-                            className="h-8 w-8 p-0 hover:bg-muted"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeletingItem(item)}
-                                aria-label={`Delete ${item.sevadar_name} record`}
-                                className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Book Seva Record</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete the book seva record for <strong>{item.sevadar_name}</strong> at <strong>{item.seva_place}</strong>? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={handleDelete}
-                                  disabled={deleteLoading}
-                                  className="bg-destructive hover:bg-destructive/90"
-                                >
-                                  {deleteLoading ? "Deleting..." : "Delete"}
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Add/Edit Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
+      {/* Add/Edit Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingItem ? "Edit Book Seva" : "Add New Book Seva"}</DialogTitle>
+            <DialogTitle>
+              {editingRecord ? 'Edit Book Seva Record' : 'Add New Book Seva Record'}
+            </DialogTitle>
             <DialogDescription>
-              {editingItem ? "Update the book seva record details." : "Fill in the details for the new book seva record."}
+              {editingRecord ? 'Update the book seva record details.' : 'Enter the details for the new book seva record.'}
             </DialogDescription>
           </DialogHeader>
-
-          {serverError && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-md text-sm">
-              {serverError}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -447,16 +490,19 @@ export default function BookSevaSection() {
                 <Input
                   id="date"
                   type="date"
-                  value={formData.date} // keep as YYYY-MM-DD
-                  onChange={(e) => handleFormChange("date", e.target.value)}
-                  className={formErrors.date ? "border-destructive" : ""}
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  required
                 />
                 {formData.date && (
                   <p className="text-sm text-muted-foreground">
-                    Selected Date: {formatDate(formData.date)}
+                    Selected Date: {new Date(formData.date).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}
                   </p>
                 )}
-                {formErrors.date && <p className="text-sm text-destructive">{formErrors.date}</p>}
               </div>
 
               <div className="space-y-2">
@@ -464,10 +510,9 @@ export default function BookSevaSection() {
                 <Input
                   id="seva_place"
                   value={formData.seva_place}
-                  onChange={(e) => handleFormChange("seva_place", e.target.value)}
-                  className={formErrors.seva_place ? "border-destructive" : ""}
+                  onChange={(e) => setFormData({ ...formData, seva_place: e.target.value })}
+                  required
                 />
-                {formErrors.seva_place && <p className="text-sm text-destructive">{formErrors.seva_place}</p>}
               </div>
 
               <div className="space-y-2">
@@ -475,33 +520,35 @@ export default function BookSevaSection() {
                 <Input
                   id="sevadar_name"
                   value={formData.sevadar_name}
-                  onChange={(e) => handleFormChange("sevadar_name", e.target.value)}
-                  className={formErrors.sevadar_name ? "border-destructive" : ""}
+                  onChange={(e) => setFormData({ ...formData, sevadar_name: e.target.value })}
+                  required
                 />
-                {formErrors.sevadar_name && <p className="text-sm text-destructive">{formErrors.sevadar_name}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="book_name">Book Name *</Label>
-                <Select value={formData.book_name} onValueChange={(value: BookName) => handleFormChange("book_name", value)}>
-                  <SelectTrigger className={formErrors.book_name ? "border-destructive" : ""}>
-                    <SelectValue placeholder="Select book name" />
+                <Select
+                  value={formData.book_name}
+                  onValueChange={(value) => setFormData({ ...formData, book_name: value as BookName })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {BOOK_NAMES.map((bookName) => (
-                      <SelectItem key={bookName} value={bookName}>
-                        {bookName}
-                      </SelectItem>
+                    {BOOK_NAMES.map(name => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {formErrors.book_name && <p className="text-sm text-destructive">{formErrors.book_name}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="book_type">Book Type *</Label>
-                <Select value={formData.book_type} onValueChange={(value: BookType) => handleFormChange("book_type", value)}>
-                  <SelectTrigger className={formErrors.book_type ? "border-destructive" : ""}>
+                <Select
+                  value={formData.book_type}
+                  onValueChange={(value) => setFormData({ ...formData, book_type: value as 'free' | 'paid' })}
+                >
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -509,7 +556,6 @@ export default function BookSevaSection() {
                     <SelectItem value="paid">Paid</SelectItem>
                   </SelectContent>
                 </Select>
-                {formErrors.book_type && <p className="text-sm text-destructive">{formErrors.book_type}</p>}
               </div>
 
               <div className="space-y-2">
@@ -519,10 +565,9 @@ export default function BookSevaSection() {
                   type="number"
                   min="1"
                   value={formData.quantity}
-                  onChange={(e) => handleFormChange("quantity", parseInt(e.target.value) || 1)}
-                  className={formErrors.quantity ? "border-destructive" : ""}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                  required
                 />
-                {formErrors.quantity && <p className="text-sm text-destructive">{formErrors.quantity}</p>}
               </div>
 
               <div className="space-y-2">
@@ -530,30 +575,38 @@ export default function BookSevaSection() {
                 <Input
                   id="coordinator_name"
                   value={formData.coordinator_name}
-                  onChange={(e) => handleFormChange("coordinator_name", e.target.value)}
-                  className={formErrors.coordinator_name ? "border-destructive" : ""}
+                  onChange={(e) => setFormData({ ...formData, coordinator_name: e.target.value })}
+                  required
                 />
-                {formErrors.coordinator_name && <p className="text-sm text-destructive">{formErrors.coordinator_name}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="driver_name">Driver Name *</Label>
+                <Label htmlFor="driver_name">Driver Name</Label>
                 <Input
                   id="driver_name"
                   value={formData.driver_name}
-                  onChange={(e) => handleFormChange("driver_name", e.target.value)}
-                  className={formErrors.driver_name ? "border-destructive" : ""}
+                  onChange={(e) => setFormData({ ...formData, driver_name: e.target.value })}
                 />
-                {formErrors.driver_name && <p className="text-sm text-destructive">{formErrors.driver_name}</p>}
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={closeModal} disabled={modalLoading}>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddDialog(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={modalLoading} className="bg-primary hover:bg-primary/90">
-                {modalLoading ? "Saving..." : editingItem ? "Update" : "Create"}
+              <Button type="submit" disabled={formLoading}>
+                {formLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {editingRecord ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  editingRecord ? 'Update Record' : 'Create Record'
+                )}
               </Button>
             </div>
           </form>

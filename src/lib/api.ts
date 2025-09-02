@@ -5,33 +5,12 @@ import { toast } from 'sonner';
 // Types & Interfaces (Based on Backend Documentation)
 // ============================================================================
 
-// Enums from backend documentation
-export type BookType = 'free' | 'paid';
+export const BHAGAT_NAMES = ['santoshi das', 'chhaya das'] as const;
+export const STATUS_OPTIONS = ['interested', 'not interested', 'other'] as const;
+export const COORDINATOR_NAME = "Purushottam Kushwaha";
+export const DRIVER_NAME = "Vinod";
 
-export type BookName = 
-  | 'gyan ganga (hindi)' 
-  | 'gyan ganga (english)' 
-  | 'gyan ganga (malayalam)'
-  | 'gyan ganga (tamil)' 
-  | 'gyan ganga (kannada)' 
-  | 'gyan ganga (bengali)'
-  | 'gyan ganga (assam)' 
-  | 'jine ki raah (hindi)' 
-  | 'jine ki raah (english)'
-  | 'jine ki raah (malayalam)' 
-  | 'jine ki raah (tamil)' 
-  | 'jine ki raah (kannada)'
-  | 'jine ki raah (bengali)' 
-  | 'jine ki raah (assam)';
-
-export type CallingSevaStatus = 'interested' | 'not interested';
-
-export type BhagatName = 'santoshi das' | 'chhaya das';
-
-export type ExpenseCategory = 'seva' | 'naamdaan';
-
-// Constants for enums
-export const BOOK_NAMES: BookName[] = [
+export const BOOK_NAMES = [
   'gyan ganga (hindi)',
   'gyan ganga (english)',
   'gyan ganga (malayalam)',
@@ -39,16 +18,19 @@ export const BOOK_NAMES: BookName[] = [
   'gyan ganga (kannada)',
   'gyan ganga (bengali)',
   'gyan ganga (assam)',
+  'gyan ganga (odia)',
+  'gyan ganga (nepali)',
   'jine ki raah (hindi)',
   'jine ki raah (english)',
   'jine ki raah (malayalam)',
   'jine ki raah (tamil)',
   'jine ki raah (kannada)',
   'jine ki raah (bengali)',
-  'jine ki raah (assam)'
-];
-
-export const BHAGAT_NAMES: BhagatName[] = ['santoshi das', 'chhaya das'];
+  'jine ki raah (assam)',
+  'jine ki raah (odia)',
+  'jine ki raah (nepali)',
+] as const;
+export type BookName = typeof BOOK_NAMES[number];
 
 // Base interfaces
 export interface ApiResponse<T = any> {
@@ -96,15 +78,15 @@ export interface BookSevaBase {
   seva_place: string;
   sevadar_name: string;
   book_name: BookName;
-  book_type: BookType;
+  book_type: string;
   quantity: number;
   coordinator_name: string;
   driver_name: string;
 }
 
-export interface BookSevaCreate extends BookSevaBase {}
+export interface BookSevaCreate extends BookSevaBase { }
 
-export interface BookSevaUpdate extends Partial<BookSevaBase> {}
+export interface BookSevaUpdate extends Partial<BookSevaBase> { }
 
 export interface BookSevaRead extends BookSevaBase {
   id: string;
@@ -117,14 +99,14 @@ export interface CallingSevaBase {
   date: string;
   address: string;
   mobile_no: string;
-  status: CallingSevaStatus;
-  assigned_bhagat_name: BhagatName;
+  status: string;
+  assigned_bhagat_name: string;
   remarks?: string;
 }
 
-export interface CallingSevaCreate extends CallingSevaBase {}
+export interface CallingSevaCreate extends CallingSevaBase { }
 
-export interface CallingSevaUpdate extends Partial<CallingSevaBase> {}
+export interface CallingSevaUpdate extends Partial<CallingSevaBase> { }
 
 export interface CallingSevaRead extends CallingSevaBase {
   id: string;
@@ -132,16 +114,17 @@ export interface CallingSevaRead extends CallingSevaBase {
 
 // Expense interfaces
 export interface ExpenseBase {
+  date: string;
   item_name: string;
   item_price: number;
   quantity: number;
   total_amount: number;
-  category: ExpenseCategory;
+  category: string;
 }
 
-export interface ExpenseCreate extends ExpenseBase {}
+export interface ExpenseCreate extends ExpenseBase { }
 
-export interface ExpenseUpdate extends Partial<ExpenseBase> {}
+export interface ExpenseUpdate extends Partial<ExpenseBase> { }
 
 export interface ExpenseRead extends ExpenseBase {
   id: string;
@@ -301,7 +284,7 @@ class RequestQueue {
 
   public async deduplicate<T>(config: AxiosRequestConfig, executor: () => Promise<T>): Promise<T> {
     const key = this.generateKey(config);
-    
+
     if (this.pendingRequests.has(key)) {
       return this.pendingRequests.get(key);
     }
@@ -340,7 +323,7 @@ class ApiClient {
         // Add authorization header for protected endpoints
         const token = TokenManager.getToken();
         const isAuthEndpoint = config.url === '/auth/login-init' || config.url === '/auth/verify-otp';
-        
+
         if (token && !TokenManager.isTokenExpired(token) && !isAuthEndpoint) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -426,14 +409,14 @@ class ApiClient {
     retryCount: number = 0
   ): Promise<T> {
     const loadingKey = `${config.method}-${config.url}`;
-    
+
     try {
       LoadingManager.setLoading(loadingKey, true);
 
       return await this.requestQueue.deduplicate(config, async () => {
         try {
           const response: AxiosResponse = await this.axiosInstance(config);
-          
+
           // Handle different response structures
           if (response.data && typeof response.data === 'object') {
             // If response has data property, return it
@@ -443,13 +426,13 @@ class ApiClient {
             // Otherwise return the whole response data
             return response.data;
           }
-          
+
           return response.data;
         } catch (error: any) {
           // Retry logic for network errors or 5xx errors
           if (retryCount < API_CONFIG.retryAttempts) {
-            const shouldRetry = 
-              !error.response || 
+            const shouldRetry =
+              !error.response ||
               error.response.status >= 500;
 
             if (shouldRetry) {
@@ -463,12 +446,12 @@ class ApiClient {
       });
     } catch (error: any) {
       const apiError = error instanceof ApiServiceError ? error : this.handleError(error);
-      
+
       // Show toast notification for errors (except 401 which redirects)
       if (apiError.status !== 401) {
         toast.error(apiError.message);
       }
-      
+
       throw apiError;
     } finally {
       LoadingManager.setLoading(loadingKey, false);
@@ -482,7 +465,7 @@ class ApiClient {
 
   public async post<T>(url: string, data?: any, isFormData = false): Promise<T> {
     const config: AxiosRequestConfig = { method: 'POST', url };
-    
+
     if (isFormData) {
       // Convert data to URLSearchParams for form-urlencoded
       const formData = new URLSearchParams();
@@ -493,7 +476,7 @@ class ApiClient {
     } else {
       config.data = data;
     }
-    
+
     return this.makeRequest<T>(config);
   }
 
@@ -553,12 +536,22 @@ export const authApi = {
 
 export const bookSevaApi = {
   async create(data: BookSevaCreate): Promise<BookSevaRead> {
-    const response = await apiClient.post<BookSevaRead>('/book-seva', data);
-    toast.success('Book seva created successfully');
-    return response;
+    try {
+      const response = await apiClient.post<BookSevaRead>('/book-seva', data);
+      toast.success('Book seva created successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
-  async getAll(params?: QueryParams): Promise<BookSevaRead[]> {
+  async getAll(params?: {
+    skip?: number;
+    limit?: number;
+    from_date?: string;
+    to_date?: string;
+  }): Promise<BookSevaRead[]> {
     return apiClient.get<BookSevaRead[]>('/book-seva', params);
   },
 
@@ -567,9 +560,14 @@ export const bookSevaApi = {
   },
 
   async update(id: string, data: BookSevaUpdate): Promise<BookSevaRead> {
-    const response = await apiClient.put<BookSevaRead>(`/book-seva/${id}`, data);
-    toast.success('Book seva updated successfully');
-    return response;
+    try {
+      const response = await apiClient.put<BookSevaRead>(`/book-seva/${id}`, data);
+      toast.success('Book seva updated successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
   async delete(id: string): Promise<{ msg: string }> {
@@ -585,12 +583,21 @@ export const bookSevaApi = {
 
 export const callingSevaApi = {
   async create(data: CallingSevaCreate): Promise<CallingSevaRead> {
-    const response = await apiClient.post<CallingSevaRead>('/calling-seva', data);
-    toast.success('Calling seva created successfully');
-    return response;
+    try {
+      const response = await apiClient.post<CallingSevaRead>('/calling-seva', data);
+      toast.success('Calling seva created successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
-  async getAll(params?: QueryParams): Promise<CallingSevaRead[]> {
+  async getAll(params?: {
+    skip?: number;
+    limit?: number;
+    status?: string;
+  }): Promise<CallingSevaRead[]> {
     return apiClient.get<CallingSevaRead[]>('/calling-seva', params);
   },
 
@@ -599,9 +606,14 @@ export const callingSevaApi = {
   },
 
   async update(id: string, data: CallingSevaUpdate): Promise<CallingSevaRead> {
-    const response = await apiClient.put<CallingSevaRead>(`/calling-seva/${id}`, data);
-    toast.success('Calling seva updated successfully');
-    return response;
+    try {
+      const response = await apiClient.put<CallingSevaRead>(`/calling-seva/${id}`, data);
+      toast.success('Calling seva updated successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
   async delete(id: string): Promise<{ msg: string }> {
@@ -617,12 +629,22 @@ export const callingSevaApi = {
 
 export const expensesApi = {
   async create(data: ExpenseCreate): Promise<ExpenseRead> {
-    const response = await apiClient.post<ExpenseRead>('/expenses', data);
-    toast.success('Expense created successfully');
-    return response;
+    try {
+      const response = await apiClient.post<ExpenseRead>('/expenses', data);
+      toast.success('Expense created successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
-  async getAll(params?: QueryParams): Promise<ExpenseRead[]> {
+  async getAll(params?: {
+    skip?: number;
+    limit?: number;
+    from_date?: string;
+    to_date?: string;
+  }): Promise<ExpenseRead[]> {
     return apiClient.get<ExpenseRead[]>('/expenses', params);
   },
 
@@ -631,9 +653,14 @@ export const expensesApi = {
   },
 
   async update(id: string, data: ExpenseUpdate): Promise<ExpenseRead> {
-    const response = await apiClient.put<ExpenseRead>(`/expenses/${id}`, data);
-    toast.success('Expense updated successfully');
-    return response;
+    try {
+      const response = await apiClient.put<ExpenseRead>(`/expenses/${id}`, data);
+      toast.success('Expenses updated successfully');
+      return response;
+    } catch (error) {
+      // Reset loading states or buttons here if needed
+      throw error;
+    }
   },
 
   async delete(id: string): Promise<{ msg: string }> {
@@ -650,7 +677,7 @@ export const expensesApi = {
 export const apiUtils = {
   // Get loading state for a specific API call
   isLoading: LoadingManager.isLoading,
-  
+
   // Subscribe to loading state changes
   subscribeToLoadingStates: LoadingManager.subscribe,
 
