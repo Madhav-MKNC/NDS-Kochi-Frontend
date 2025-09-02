@@ -558,8 +558,8 @@ export const bookSevaApi = {
     return response;
   },
 
-  async getAll(): Promise<BookSevaRead[]> {
-    return apiClient.get<BookSevaRead[]>('/book-seva');
+  async getAll(params?: QueryParams): Promise<BookSevaRead[]> {
+    return apiClient.get<BookSevaRead[]>('/book-seva', params);
   },
 
   async getById(id: string): Promise<BookSevaRead> {
@@ -590,8 +590,8 @@ export const callingSevaApi = {
     return response;
   },
 
-  async getAll(): Promise<CallingSevaRead[]> {
-    return apiClient.get<CallingSevaRead[]>('/calling-seva');
+  async getAll(params?: QueryParams): Promise<CallingSevaRead[]> {
+    return apiClient.get<CallingSevaRead[]>('/calling-seva', params);
   },
 
   async getById(id: string): Promise<CallingSevaRead> {
@@ -622,8 +622,8 @@ export const expensesApi = {
     return response;
   },
 
-  async getAll(): Promise<ExpenseRead[]> {
-    return apiClient.get<ExpenseRead[]>('/expenses');
+  async getAll(params?: QueryParams): Promise<ExpenseRead[]> {
+    return apiClient.get<ExpenseRead[]>('/expenses', params);
   },
 
   async getById(id: string): Promise<ExpenseRead> {
