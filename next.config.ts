@@ -1,9 +1,37 @@
-import type { NextConfig } from "next";
-import path from "node:path";
+// import type { NextConfig } from "next";
+// import path from "node:path";
 
-const LOADER = path.resolve(__dirname, 'src/visual-edits/component-tagger-loader.js');
+// const LOADER = path.resolve(__dirname, 'src/visual-edits/component-tagger-loader.js');
 
-const nextConfig: NextConfig = {
+// const nextConfig: NextConfig = {
+//   images: {
+//     remotePatterns: [
+//       {
+//         protocol: 'https',
+//         hostname: '**',
+//       },
+//       {
+//         protocol: 'http',
+//         hostname: '**',
+//       },
+//     ],
+//   },
+//   outputFileTracingRoot: path.resolve(__dirname, '../../'),
+//   turbopack: {
+//     rules: {
+//       "*.{jsx,tsx}": {
+//         loaders: [LOADER]
+//       }
+//     }
+//   }
+// };
+
+// export default nextConfig;
+
+import path from 'node:path';
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       {
@@ -16,14 +44,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  output: 'export', // Required for static export
   outputFileTracingRoot: path.resolve(__dirname, '../../'),
-  turbopack: {
-    rules: {
-      "*.{jsx,tsx}": {
-        loaders: [LOADER]
-      }
-    }
-  }
 };
 
 export default nextConfig;
