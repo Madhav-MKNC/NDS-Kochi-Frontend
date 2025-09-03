@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+// import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios";
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -736,10 +737,12 @@ export async function fetchConstants(): Promise<ConstantsResponse> {
   return constants;
 }
 
-export default {
+const api = {
   auth: authApi,
   bookSeva: bookSevaApi,
   callingSeva: callingSevaApi,
   expenses: expensesApi,
-  utils: apiUtils
+  utils: apiUtils,
 };
+
+export default api;
