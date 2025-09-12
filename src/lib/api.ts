@@ -83,6 +83,7 @@ export interface User {
 
 // Book Seva interfaces
 export interface BookSevaBase {
+  id: string;
   date: string;
   seva_place: string;
   sevadar_name: string;
@@ -98,13 +99,13 @@ export interface BookSevaCreate extends BookSevaBase { }
 export interface BookSevaUpdate extends Partial<BookSevaBase> { }
 
 export interface BookSevaRead extends BookSevaBase {
-  id: string;
   date_from?: string;
   date_to?: string;
 }
 
 // Calling Seva interfaces
 export interface CallingSevaBase {
+  id: string;
   date: string;
   address: string;
   mobile_no: string;
@@ -117,12 +118,11 @@ export interface CallingSevaCreate extends CallingSevaBase { }
 
 export interface CallingSevaUpdate extends Partial<CallingSevaBase> { }
 
-export interface CallingSevaRead extends CallingSevaBase {
-  id: string;
-}
+export interface CallingSevaRead extends CallingSevaBase { }
 
 // Expense interfaces
 export interface ExpenseBase {
+  id: string;
   date: string;
   item_name: string;
   item_price: number;
@@ -135,9 +135,7 @@ export interface ExpenseCreate extends ExpenseBase { }
 
 export interface ExpenseUpdate extends Partial<ExpenseBase> { }
 
-export interface ExpenseRead extends ExpenseBase {
-  id: string;
-}
+export interface ExpenseRead extends ExpenseBase { }
 
 // Query parameters
 export interface QueryParams {

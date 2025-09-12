@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, DollarSign, Edit, Trash2, TrendingUp, Search, ChevronLeft, ChevronRight, Filter, Loader2, Download } from "lucide-react";
+import { Plus, DollarSign, Edit, Trash2, TrendingUp, Search, Calendar, ChevronLeft, ChevronRight, Filter, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   expensesApi,
@@ -60,13 +60,13 @@ export default function ExpensesSection() {
   const [modalLoading, setModalLoading] = useState(false);
 
   // Form states
-  const [formData, setFormData] = useState<ExpenseCreate>({
+  const [formData, setFormData] = useState<Partial<ExpenseCreate>>({
     date: "",
     item_name: "",
     item_price: 0,
     quantity: 1,
     total_amount: 0,
-    category: "seva",
+    category: "naamdaan",
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
@@ -171,16 +171,15 @@ export default function ExpensesSection() {
     if (dataLoaded) {
       loadData(currentPage);
     }
-  }, [currentPage, recordsPerPage, loadData, dataLoaded]);
+  }, [currentPage, recordsPerPage, dataLoaded]);
 
-
-  const validateForm = useCallback((data: ExpenseCreate): Record<string, string> => {
+  const validateForm = useCallback((data: Partial<ExpenseCreate>): Record<string, string> => {
     const errors: Record<string, string> = {};
 
-    if (!data.item_name.trim()) errors.item_name = "Item name is required";
-    if (!data.item_price || data.item_price <= 0) errors.item_price = "Item price must be greater than 0";
-    if (!data.quantity || data.quantity < 1) errors.quantity = "Quantity must be at least 1";
-    if (!data.total_amount || data.total_amount <= 0) errors.total_amount = "Total amount must be greater than 0";
+    if (!data.item_name?.trim()) errors.item_name = "Item name is required";
+    if (!(data.item_price && data.item_price > 0)) errors.item_price = "Item price must be greater than 0";
+    if (!(data.quantity && data.quantity > 0)) errors.quantity = "Quantity must be at least 1";
+    if (!(data.total_amount && data.total_amount > 0)) errors.total_amount = "Total amount must be greater than 0";
     if (!data.category) errors.category = "Category is required";
 
     return errors;
@@ -205,7 +204,7 @@ export default function ExpensesSection() {
         item_price: 0,
         quantity: 1,
         total_amount: 0,
-        category: "seva",
+        category: "naamdaan",
       });
     }
 
@@ -223,7 +222,7 @@ export default function ExpensesSection() {
       item_price: 0,
       quantity: 1,
       total_amount: 0,
-      category: "seva",
+      category: "naamdaan",
     });
     setFormErrors({});
     setServerError("");
@@ -235,8 +234,8 @@ export default function ExpensesSection() {
 
       // Auto-calculate total amount when price or quantity changes
       if (field === "item_price" || field === "quantity") {
-        const price = field === "item_price" ? Number(value) : newData.item_price;
-        const quantity = field === "quantity" ? Number(value) : newData.quantity;
+        const price = Number(newData.item_price) || 0;
+        const quantity = Number(newData.quantity) || 0;
         newData.total_amount = price * quantity;
       }
 
@@ -266,7 +265,8 @@ export default function ExpensesSection() {
         await expensesApi.update(editingItem.id, updatePayload);
         toast.success("Expense updated successfully");
       } else {
-        await expensesApi.create(formData);
+        // await expensesApi.create(formData as unknown as ExpenseCreate);
+        await expensesApi.create(formData as ExpenseCreate);
         toast.success("Expense created successfully");
       }
 
@@ -321,7 +321,7 @@ export default function ExpensesSection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-foreground">Expenses</h1>
+          <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
           <p className="text-muted-foreground">Track and manage expense records</p>
         </div>
         <Button onClick={() => openModal()} className="bg-primary hover:bg-primary/90">
@@ -392,7 +392,10 @@ export default function ExpensesSection() {
                   Loading...
                 </>
               ) : (
-                "Load Data"
+                <>
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Load Data
+                </>
               )}
             </Button>
             <Button variant={"outline"} onClick={handleExport}>
