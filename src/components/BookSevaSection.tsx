@@ -42,7 +42,7 @@ export default function BookSevaSection() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  const [recordsPerPage, setRecordsPerPage] = useState(20);
+  const [recordsPerPage, setRecordsPerPage] = useState(100);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
@@ -360,6 +360,8 @@ export default function BookSevaSection() {
                       <SelectItem value="20">20</SelectItem>
                       <SelectItem value="50">50</SelectItem>
                       <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="200">200</SelectItem>
+                      <SelectItem value="1000">1000</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
