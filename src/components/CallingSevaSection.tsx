@@ -43,9 +43,9 @@ export default function CallingSevaSection() {
   // Form states
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CallingSevaRead | null>(null);
-const [formLoading, setFormLoading] = useState(false);
-const [deletingRecord, setDeletingRecord] = useState<CallingSevaRead | null>(null);
-const [deleteLoading, setDeleteLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<CallingSevaRead | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<CallingSevaCreate>>({
@@ -184,7 +184,7 @@ const [deleteLoading, setDeleteLoading] = useState(false);
     setShowAddDialog(true);
   };
 
-const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
 
     try {
@@ -266,7 +266,13 @@ const handleDelete = async (id: string) => {
                   <SelectItem value="all">All Status</SelectItem>
                   {STATUS_OPTIONS.map(status => (
                     <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                      {status === "Interested (ज्ञान में रुची है)" ? (
+                        <Badge className="bg-green-200 text-green-800 border border-green-400">
+                          Interested (ज्ञान में रुची है)
+                        </Badge>
+                      ) : (
+                        status.charAt(0).toUpperCase() + status.slice(1)
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -372,9 +378,15 @@ const handleDelete = async (id: string) => {
                         </TableCell>
                         <TableCell>{record.mobile_no}</TableCell>
                         <TableCell>
-                          <Badge variant={"default"}>
-                            {record.status}
-                          </Badge>
+                          {record.status === "Interested (ज्ञान में रुची है)" ? (
+                            <Badge className="bg-green-200 text-green-800 border border-green-400">
+                              Interested (ज्ञान में रुची है)
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-200 text-black-800 border border-black-100">
+                              {record.status}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>{record.assigned_bhagat_name}</TableCell>
                         <TableCell className="max-w-xs truncate">
@@ -389,37 +401,37 @@ const handleDelete = async (id: string) => {
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-<AlertDialog>
-  <AlertDialogTrigger asChild>
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => setDeletingRecord(record)}
-      className="text-destructive hover:text-destructive"
-      aria-label={`Delete calling seva record`}
-    >
-      <Trash2 className="w-4 h-4" />
-    </Button>
-  </AlertDialogTrigger>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Delete Calling Seva Record</AlertDialogTitle>
-      <AlertDialogDescription>
-        Are you sure you want to delete this calling seva record for <strong>{record.address}</strong>? This action cannot be undone.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Cancel</AlertDialogCancel>
-      <AlertDialogAction
-        onClick={handleDeleteConfirm}
-        disabled={deleteLoading}
-        className="bg-destructive hover:bg-destructive/90"
-      >
-        {deleteLoading ? "Deleting..." : "Delete"}
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeletingRecord(record)}
+                                  className="text-destructive hover:text-destructive"
+                                  aria-label={`Delete calling seva record`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Calling Seva Record</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this calling seva record for <strong>{record.address}</strong>? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={handleDeleteConfirm}
+                                    disabled={deleteLoading}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    {deleteLoading ? "Deleting..." : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -557,7 +569,7 @@ const handleDelete = async (id: string) => {
                 <Label htmlFor="status">Status *</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => setFormData({ ...formData, status: value as 'interested' | 'not interested' })}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
