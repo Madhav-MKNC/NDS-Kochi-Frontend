@@ -237,9 +237,13 @@ export default function CallingSevaSection() {
   };
 
   function formatPhoneNumber(rawNumber: string | undefined | null): string | null {
-    if (!rawNumber) return null;
+    if (!rawNumber) {
+      alert("Invalid number: empty");
+      return null;
+    }
 
     const digits = rawNumber.replace(/[^0-9]/g, "");
+    console.log("Digits extracted:", digits);
 
     if (digits.length === 10) {
       return `+91${digits}`;
