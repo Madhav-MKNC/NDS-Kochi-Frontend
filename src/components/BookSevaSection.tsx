@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
 import { bookSevaApi, type BookSevaRead, type BookSevaCreate, type BookSevaUpdate } from "@/lib/api";
@@ -49,8 +50,10 @@ export default function BookSevaSection() {
 
   // Form states
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<BookSevaRead | null>(null);
-  const [formLoading, setFormLoading] = useState(false);
+const [editingRecord, setEditingRecord] = useState<BookSevaRead | null>(null);
+const [formLoading, setFormLoading] = useState(false);
+const [deletingRecord, setDeletingRecord] = useState<BookSevaRead | null>(null);
+const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<BookSevaCreate>>({
@@ -216,6 +219,25 @@ export default function BookSevaSection() {
       console.error("Error deleting record:", error);
     }
   };
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deletingRecord) return;
+
+    setDeleteLoading(true);
+    try {
+      await bookSevaApi.delete(deletingRecord.id);
+      setDeletingRecord(null);
+      toast.success("Book seva record deleted successfully");
+      if (dataLoaded) {
+        await loadData(); // Reload data after successful deletion
+      }
+    } catch (error) {
+      toast.error("Failed to delete book seva record");
+      console.error("Error deleting record:", error);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deletingRecord, loadData, dataLoaded]);
 
   const resetForm = () => {
     setFormData({
@@ -413,14 +435,37 @@ export default function BookSevaSection() {
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(record.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+<AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setDeletingRecord(record)}
+      className="text-destructive hover:text-destructive"
+      aria-label={`Delete book seva record`}
+    >
+      <Trash2 className="w-4 h-4" />
+    </Button>
+  </AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Book Seva Record</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this book seva record for <strong>{record.seva_place}</strong>? This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleDeleteConfirm}
+        disabled={deleteLoading}
+        className="bg-destructive hover:bg-destructive/90"
+      >
+        {deleteLoading ? "Deleting..." : "Delete"}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

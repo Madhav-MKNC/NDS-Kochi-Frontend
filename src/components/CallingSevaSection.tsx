@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
@@ -42,7 +43,9 @@ export default function CallingSevaSection() {
   // Form states
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState<CallingSevaRead | null>(null);
-  const [formLoading, setFormLoading] = useState(false);
+const [formLoading, setFormLoading] = useState(false);
+const [deletingRecord, setDeletingRecord] = useState<CallingSevaRead | null>(null);
+const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<CallingSevaCreate>>({
@@ -181,7 +184,7 @@ export default function CallingSevaSection() {
     setShowAddDialog(true);
   };
 
-  const handleDelete = async (id: string) => {
+const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
 
     try {
@@ -195,6 +198,25 @@ export default function CallingSevaSection() {
       console.error("Error deleting record:", error);
     }
   };
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deletingRecord) return;
+
+    setDeleteLoading(true);
+    try {
+      await callingSevaApi.delete(deletingRecord.id);
+      setDeletingRecord(null);
+      toast.success("Calling seva record deleted successfully");
+      if (dataLoaded) {
+        await loadData(); // Reload data after successful deletion
+      }
+    } catch (error) {
+      toast.error("Failed to delete calling seva record");
+      console.error("Error deleting record:", error);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deletingRecord, loadData, dataLoaded]);
 
   const resetForm = () => {
     setFormData({
@@ -367,14 +389,37 @@ export default function CallingSevaSection() {
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(record.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+<AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setDeletingRecord(record)}
+      className="text-destructive hover:text-destructive"
+      aria-label={`Delete calling seva record`}
+    >
+      <Trash2 className="w-4 h-4" />
+    </Button>
+  </AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete Calling Seva Record</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete this calling seva record for <strong>{record.address}</strong>? This action cannot be undone.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={handleDeleteConfirm}
+        disabled={deleteLoading}
+        className="bg-destructive hover:bg-destructive/90"
+      >
+        {deleteLoading ? "Deleting..." : "Delete"}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>
