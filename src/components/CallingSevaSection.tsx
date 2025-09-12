@@ -236,8 +236,26 @@ export default function CallingSevaSection() {
     setShowAddDialog(true);
   };
 
+  function formatPhoneNumber(rawNumber: string | undefined | null): string | null {
+    if (!rawNumber) return null;
+
+    const digits = rawNumber.replace(/[^0-9]/g, "");
+
+    if (digits.length === 10) {
+      return `+91${digits}`;
+    } else if (digits.length === 12) {
+      const countryCode = digits.slice(0, 2);
+      const restNumber = digits.slice(2);
+      return `+${countryCode}${restNumber}`;
+    } else {
+      alert(`Invalid number: ${rawNumber}`);
+      return null;
+    }
+  }
+
   const handleWhatsApp = (record: CallingSevaRead) => {
-    const phone = record.mobile_no?.replace(/[^0-9]/g, "");
+    const phone = formatPhoneNumber(record.mobile_no);
+    if (!phone) return;
     const message = `Hello ${record.assigned_bhagat_name}, regarding your seva request at ${record.address} on ${record.date ? new Date(record.date).toLocaleDateString() : ""}.`;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
