@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, Download, MessageSquare } from "lucide-react";
+import { IconBrandWhatsapp } from '@tabler/icons-react';
 import { callingSevaApi, fetchConstants, type CallingSevaRead, type CallingSevaCreate, type CallingSevaUpdate } from "@/lib/api";
 import { exportToCSV } from "@/utils/exportToCSV";
 import { formatRecords } from "@/utils/formatRecords";
@@ -235,6 +236,13 @@ export default function CallingSevaSection() {
     setShowAddDialog(true);
   };
 
+  const handleWhatsApp = (record: CallingSevaRead) => {
+    const phone = record.mobile_no?.replace(/[^0-9]/g, "");
+    const message = `Hello ${record.assigned_bhagat_name}, regarding your seva request at ${record.address} on ${record.date ? new Date(record.date).toLocaleDateString() : ""}.`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -394,6 +402,15 @@ export default function CallingSevaSection() {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleWhatsApp(record)}
+                              className="text-green-500 hover:text-green-600"
+                              aria-label="WhatsApp"
+                            >
+                              <IconBrandWhatsapp className="w-4 h-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"

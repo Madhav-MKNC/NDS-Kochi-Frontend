@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 // Types & Interfaces (Based on Backend Documentation)
 // ============================================================================
 
-// TODO: The below constants will be fetched dynamically using api endpoint /general/constants
+// Dynamically fetched using api endpoint /general/constants
 export let BHAGAT_NAMES: string[] = [];
 export let STATUS_OPTIONS: string[] = [];
 export let COORDINATOR_NAME = "";
