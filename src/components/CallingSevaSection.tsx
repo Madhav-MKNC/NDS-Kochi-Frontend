@@ -258,9 +258,10 @@ export default function CallingSevaSection() {
   }
 
   const handleWhatsApp = (record: CallingSevaRead) => {
-    const phone = formatPhoneNumber(record.mobile_no);
-    if (!phone) return;
-    const message = `
+    const phone = formatPhoneNumber(record?.mobile_no || "");
+if (!phone) return;
+
+const message = `
 Namaste 🙏
 Join our WhatsApp group for meaningful discussions on the book Gyan Ganga
 https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
@@ -271,8 +272,8 @@ https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
 `.trim();
 
 const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-window.open(url, "_blank");
-
+window.open(url, "_blank"); 
+    
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
