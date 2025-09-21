@@ -260,10 +260,18 @@ export default function CallingSevaSection() {
   const handleWhatsApp = (record: CallingSevaRead) => {
     const phone = formatPhoneNumber(record.mobile_no);
     if (!phone) return;
-    const message = `Hello ${record.assigned_bhagat_name}, regarding your seva request at ${record.address} on ${record.date ? new Date(record.date).toLocaleDateString() : ""}.`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank");
-  };
+    const message = `
+Namaste 🙏
+Join our WhatsApp group for meaningful discussions on the book Gyan Ganga
+https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
+
+നമസ്തേ 🙏
+ജ്ഞാന്‍ഗംഗ പുസ്തകത്തെ കുറിച്ചുള്ള അർത്ഥപൂർണ്ണമായ ചർച്ചകൾക്കായി ഞങ്ങളുടെ WhatsApp ഗ്രൂപ്പിൽ ചേരൂ 📖✨
+https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
+`.trim();
+
+const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+window.open(url, "_blank");
 
   return (
     <div className="space-y-6">
