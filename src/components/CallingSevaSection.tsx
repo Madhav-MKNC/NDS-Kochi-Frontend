@@ -272,7 +272,7 @@ https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
 `.trim();
 
 const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-window.open(url, "_blank"); 
+window.open(url, "_blank"); }
     
   return (
     <div className="space-y-6">
