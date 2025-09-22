@@ -112,6 +112,7 @@ export interface CallingSevaBase {
   status: string;
   assigned_bhagat_name: string;
   remarks?: string;
+  wa_message?: string;
 }
 
 export interface CallingSevaCreate extends CallingSevaBase { }

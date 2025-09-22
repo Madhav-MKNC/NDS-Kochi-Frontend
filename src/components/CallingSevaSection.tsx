@@ -180,6 +180,7 @@ export default function CallingSevaSection() {
       mobile_no: record.mobile_no || "",
       status: record.status || "other",
       assigned_bhagat_name: record.assigned_bhagat_name || BHAGAT_NAMES[0],
+      wa_message: record.wa_message || "",
       remarks: record.remarks || ""
     });
     setShowAddDialog(true);
@@ -259,21 +260,12 @@ export default function CallingSevaSection() {
 
   const handleWhatsApp = (record: CallingSevaRead) => {
     const phone = formatPhoneNumber(record?.mobile_no || "");
-if (!phone) return;
+    if (!phone) return;
+    const message = record?.wa_message || "";
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  }
 
-const message = `
-Namaste 🙏
-Join our WhatsApp group for meaningful discussions on the book Gyan Ganga
-https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
-
-നമസ്തേ 🙏
-ജ്ഞാന്‍ഗംഗ പുസ്തകത്തെ കുറിച്ചുള്ള അർത്ഥപൂർണ്ണമായ ചർച്ചകൾക്കായി ഞങ്ങളുടെ WhatsApp ഗ്രൂപ്പിൽ ചേരൂ 📖✨
-https://chat.whatsapp.com/D4cjhayId6uKWUSyOAJwo3
-`.trim();
-
-const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-window.open(url, "_blank"); 
-    
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
