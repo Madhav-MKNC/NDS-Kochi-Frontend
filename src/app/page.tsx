@@ -42,7 +42,7 @@ export default function Page() {
   const renderMainContent = () => {
     switch (currentView) {
       case "dashboard":
-        return <Dashboard />;
+        return <Dashboard onNavigate={handleNavigation} />;
       case "book-seva":
         return <BookSevaSection />;
       case "calling-seva":
@@ -50,7 +50,7 @@ export default function Page() {
       case "expenses":
         return <ExpensesSection />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={handleNavigation} />;
     }
   };
 
