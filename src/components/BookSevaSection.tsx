@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Search, Calendar, ChevronLeft, ChevronRight, Filter, Download, TrendingUp, BookAIcon, BookOpen, BookIcon, BookPlusIcon } from "lucide-react";
 import { bookSevaApi, type BookSevaRead, type BookSevaCreate, type BookSevaUpdate } from "@/lib/api";
 import { exportToCSV } from "@/utils/exportToCSV";
 import { formatRecords } from "@/utils/formatRecords";
@@ -50,10 +50,10 @@ export default function BookSevaSection() {
 
   // Form states
   const [showAddDialog, setShowAddDialog] = useState(false);
-const [editingRecord, setEditingRecord] = useState<BookSevaRead | null>(null);
-const [formLoading, setFormLoading] = useState(false);
-const [deletingRecord, setDeletingRecord] = useState<BookSevaRead | null>(null);
-const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<BookSevaRead | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState<BookSevaRead | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<Partial<BookSevaCreate>>({
@@ -347,6 +347,46 @@ const [deleteLoading, setDeleteLoading] = useState(false);
       {/* Search and Data Section - Only show after data is loaded */}
       {dataLoaded && (
         <>
+
+          {/* Summary Card */}
+          {filteredRecords.length > 0 && (
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-base text-foreground">
+                      Total book seva from {new Date(fromDate).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric"
+                      })} to {new Date(toDate).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric"
+                      })}
+                    </p>
+
+                    <p className="text-m font-medium text-muted-foreground">
+                      Total Books: {filteredRecords.reduce((sum, r) => sum + (r.quantity || 0), 0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Paid Books: {filteredRecords.filter(r => r.book_type === "paid").reduce((sum, r) => sum + (r.quantity || 0), 0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Free Books: {filteredRecords.filter(r => r.book_type === "free").reduce((sum, r) => sum + (r.quantity || 0), 0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Seva Amount: ₹{filteredRecords.filter(r => r.book_type === "paid").reduce((sum, r) => sum + (r.quantity || 0), 0) * 10}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Search Bar */}
           <div className="flex items-center space-x-4">
             <div className="relative flex-1">
@@ -365,7 +405,7 @@ const [deleteLoading, setDeleteLoading] = useState(false);
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>Book Seva Records</CardTitle>
+                  {/* <CardTitle>Book Seva Records</CardTitle> */}
                   <CardDescription>
                     Showing {filteredRecords.length} records
                   </CardDescription>
@@ -435,37 +475,37 @@ const [deleteLoading, setDeleteLoading] = useState(false);
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-<AlertDialog>
-  <AlertDialogTrigger asChild>
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => setDeletingRecord(record)}
-      className="text-destructive hover:text-destructive"
-      aria-label={`Delete book seva record`}
-    >
-      <Trash2 className="w-4 h-4" />
-    </Button>
-  </AlertDialogTrigger>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Delete Book Seva Record</AlertDialogTitle>
-      <AlertDialogDescription>
-        Are you sure you want to delete this book seva record for <strong>{record.seva_place}</strong>? This action cannot be undone.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Cancel</AlertDialogCancel>
-      <AlertDialogAction
-        onClick={handleDeleteConfirm}
-        disabled={deleteLoading}
-        className="bg-destructive hover:bg-destructive/90"
-      >
-        {deleteLoading ? "Deleting..." : "Delete"}
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeletingRecord(record)}
+                                  className="text-destructive hover:text-destructive"
+                                  aria-label={`Delete book seva record`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Book Seva Record</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this book seva record for <strong>{record.seva_place}</strong>? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={handleDeleteConfirm}
+                                    disabled={deleteLoading}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    {deleteLoading ? "Deleting..." : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>

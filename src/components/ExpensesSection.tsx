@@ -472,7 +472,7 @@ export default function ExpensesSection() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>Expense Records</CardTitle>
+                    {/* <CardTitle>Expense Records</CardTitle> */}
                     <CardDescription>
                       Showing {filteredExpenses.length} records
                     </CardDescription>

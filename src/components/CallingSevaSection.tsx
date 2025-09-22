@@ -355,7 +355,7 @@ export default function CallingSevaSection() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>Calling Seva Records</CardTitle>
+                  {/* <CardTitle>Calling Seva Records</CardTitle> */}
                   <CardDescription>
                     Showing {filteredRecords.length} records
                   </CardDescription>
