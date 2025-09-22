@@ -643,12 +643,11 @@ const [deleteLoading, setDeleteLoading] = useState(false);
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="coordinator_name">Coordinator Name *</Label>
+                <Label htmlFor="coordinator_name">Coordinator Name</Label>
                 <Input
                   id="coordinator_name"
                   value={formData.coordinator_name}
                   onChange={(e) => setFormData({ ...formData, coordinator_name: e.target.value })}
-                  required
                 />
               </div>
 
