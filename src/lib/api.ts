@@ -63,7 +63,8 @@ export interface LoginInitRequest {
 }
 
 export interface LoginInitResponse {
-  msg: string;
+  access_token: string;
+  token_type: string;
 }
 
 export interface VerifyOtpRequest {
@@ -222,7 +223,7 @@ const DEFAULT_HEADERS = {
 // Token Management
 // ============================================================================
 
-class TokenManager {
+export class TokenManager {
   private static readonly TOKEN_KEY = 'access_token';
 
   public static getToken(): string | null {
@@ -512,16 +513,9 @@ const apiClient = new ApiClient();
 // ============================================================================
 
 export const authApi = {
+  // Login function that returns the access token directly
   async loginInit(data: LoginInitRequest): Promise<LoginInitResponse> {
     return apiClient.post<LoginInitResponse>('/auth/login-init', data, true); // form-urlencoded
-  },
-
-  async verifyOtp(data: VerifyOtpRequest): Promise<VerifyOtpResponse> {
-    const response = await apiClient.post<VerifyOtpResponse>('/auth/verify-otp', data);
-    if (response.access_token) {
-      TokenManager.setToken(response.access_token);
-    }
-    return response;
   },
 
   async getCurrentUser(): Promise<User> {
